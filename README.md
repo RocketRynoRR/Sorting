@@ -5,6 +5,7 @@ A small static MVP for organizing home storage with QR-coded locations.
 ## What It Does
 
 - Create storage locations like boxes, shelves, drawers, tubs, and rooms.
+- Manage reusable place tags like Home, Work, Car, and Shed in Settings.
 - Add items with quantity, category, and notes.
 - Edit locations after they are created.
 - Move items between locations with a drag and drop sorting board.

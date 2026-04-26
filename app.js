@@ -10,6 +10,7 @@ const state = {
   user: null,
   locations: [],
   items: [],
+  places: [],
   loading: true
 };
 
@@ -157,6 +158,23 @@ function getVisibleLocations() {
     const items = getLocationItems(location.id);
     return matchesSearch(location) || items.some((item) => matchesSearch(location, item));
   });
+}
+
+function getPlaceNames() {
+  const saved = state.places.map((place) => place.name).filter(Boolean);
+  const used = state.locations.map((location) => location.area).filter(Boolean);
+  return [...new Set([...saved, ...used])].sort((a, b) => a.localeCompare(b));
+}
+
+function getPlaceOptions(selectedPlace = "") {
+  const names = getPlaceNames();
+  const selected = selectedPlace || names[0] || "";
+  const options = names.map((name) => {
+    const isSelected = name === selected ? " selected" : "";
+    return `<option value="${escapeHtml(name)}"${isSelected}>${escapeHtml(name)}</option>`;
+  }).join("");
+
+  return `<option value="">No place</option>${options}`;
 }
 
 function setActiveLocation(locationId, updateHash = true) {
@@ -328,6 +346,7 @@ async function loadCloudData() {
   if (!state.user) {
     state.locations = [];
     state.items = [];
+    state.places = [];
     state.loading = false;
     render();
     return;
@@ -337,9 +356,14 @@ async function loadCloudData() {
   setSyncStatus("Syncing...");
   render();
 
-  const [{ data: locations, error: locationsError }, { data: items, error: itemsError }] = await Promise.all([
+  const [
+    { data: locations, error: locationsError },
+    { data: items, error: itemsError },
+    { data: places, error: placesError }
+  ] = await Promise.all([
     supabaseClient.from("locations").select("*").order("created_at", { ascending: false }),
-    supabaseClient.from("items").select("*").order("created_at", { ascending: false })
+    supabaseClient.from("items").select("*").order("created_at", { ascending: false }),
+    supabaseClient.from("places").select("*").order("name", { ascending: true })
   ]);
 
   if (locationsError || itemsError) {
@@ -351,6 +375,12 @@ async function loadCloudData() {
 
   state.locations = locations || [];
   state.items = items || [];
+  state.places = placesError ? [] : places || [];
+  if (placesError) {
+    setMessage("Run the updated Supabase setup SQL to enable place tags.");
+  } else {
+    await createDefaultPlaces();
+  }
 
   const hashLocation = readHashLocation();
   activeLocationId = state.locations.some((location) => location.id === hashLocation)
@@ -397,6 +427,60 @@ async function updateLocation(locationId, updates) {
   }
 
   state.locations = state.locations.map((location) => location.id === locationId ? data : location);
+  setSyncStatus("Synced", true);
+  render();
+}
+
+async function createPlace(name) {
+  const cleanName = name.trim();
+  if (!cleanName) return;
+
+  const { data, error } = await supabaseClient
+    .from("places")
+    .insert({ name: cleanName, user_id: state.user.id })
+    .select()
+    .single();
+
+  if (error) {
+    showError(error);
+    return;
+  }
+
+  state.places.push(data);
+  state.places.sort((a, b) => a.name.localeCompare(b.name));
+  setSyncStatus("Synced", true);
+  render();
+}
+
+async function createDefaultPlaces() {
+  if (!state.user || state.places.length || state.locations.length) return;
+
+  const defaults = ["Home", "Work", "Car"];
+  const { data, error } = await supabaseClient
+    .from("places")
+    .insert(defaults.map((name) => ({ name, user_id: state.user.id })))
+    .select();
+
+  if (!error) {
+    state.places = data || [];
+  }
+}
+
+async function deletePlace(place) {
+  const used = state.locations.some((location) => location.area === place.name);
+  const message = used
+    ? `${place.name} is used by locations. Delete the tag anyway? Existing locations keep their current place text.`
+    : `Delete ${place.name}?`;
+  if (!window.confirm(message)) return;
+
+  const { error } = await supabaseClient.from("places").delete().eq("id", place.id);
+
+  if (error) {
+    showError(error);
+    return;
+  }
+
+  state.places = state.places.filter((candidate) => candidate.id !== place.id);
   setSyncStatus("Synced", true);
   render();
 }
@@ -600,8 +684,9 @@ function renderAddMode() {
     </label>
     <label>
       Place
-      <input class="new-location-area" autocomplete="off" placeholder="Home, work, car, shed">
+      <select class="new-location-area">${getPlaceOptions()}</select>
     </label>
+    <p class="muted-copy">Manage place tags in Settings.</p>
     <button class="primary-button" type="submit">Create Location</button>
   `;
   locationPanel.addEventListener("submit", async (event) => {
@@ -677,7 +762,7 @@ function renderEditMode() {
       </label>
       <label>
         Place
-        <input class="edit-area" value="${escapeHtml(location.area || "")}" placeholder="Home, work, car">
+        <select class="edit-area">${getPlaceOptions(location.area || "")}</select>
       </label>
       <div class="edit-actions">
         <button class="primary-button" type="submit">Save</button>
@@ -779,6 +864,59 @@ function renderMoveMode() {
   els.modePanel.replaceChildren(board);
 }
 
+function renderSettingsMode() {
+  const wrapper = createNode("section", "add-grid");
+  const addPanel = createNode("form", "panel compact-form");
+  addPanel.innerHTML = `
+    <h2>Place Tags</h2>
+    <p class="muted-copy">Create reusable place tags like Home, Work, Car, Shed, or Storage Unit.</p>
+    <label>
+      New tag
+      <input class="new-place-name" autocomplete="off" placeholder="Home" required>
+    </label>
+    <button class="primary-button" type="submit">Add Place Tag</button>
+  `;
+  addPanel.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const input = addPanel.querySelector(".new-place-name");
+    await createPlace(input.value);
+    addPanel.reset();
+  });
+
+  const listPanel = createNode("section", "panel");
+  listPanel.innerHTML = `
+    <div class="section-heading">
+      <h2>Saved Tags</h2>
+      <span class="count-pill">${state.places.length}</span>
+    </div>
+    <div class="items-list"></div>
+  `;
+  const list = listPanel.querySelector(".items-list");
+
+  state.places.forEach((place) => {
+    const row = createNode("article", "item-row");
+    const usedCount = state.locations.filter((location) => location.area === place.name).length;
+    row.innerHTML = `
+      <div>
+        <p class="item-name-text"></p>
+        <p class="item-meta"></p>
+      </div>
+      <button class="danger-button" type="button">Remove</button>
+    `;
+    row.querySelector(".item-name-text").textContent = place.name;
+    row.querySelector(".item-meta").textContent = `${usedCount} location${usedCount === 1 ? "" : "s"}`;
+    row.querySelector("button").addEventListener("click", () => deletePlace(place));
+    list.append(row);
+  });
+
+  if (!state.places.length) {
+    list.append(createNode("p", "item-meta", "No place tags yet."));
+  }
+
+  wrapper.append(addPanel, listPanel);
+  els.modePanel.replaceChildren(wrapper);
+}
+
 function renderModePanel() {
   if (state.loading || !state.user) {
     renderEmptyState();
@@ -797,6 +935,11 @@ function renderModePanel() {
 
   if (activeMode === "move") {
     renderMoveMode();
+    return;
+  }
+
+  if (activeMode === "settings") {
+    renderSettingsMode();
     return;
   }
 
