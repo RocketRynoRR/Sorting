@@ -231,14 +231,59 @@ function escapeHtml(value) {
     .replace(/'/g, "&#039;");
 }
 
+function normalizeLocationSections(value) {
+  const entries = Array.isArray(value)
+    ? value
+    : String(value || "").split(/\r?\n|,/);
+  const seen = new Set();
+
+  return entries
+    .map((entry) => normalizeTagName(entry))
+    .filter((entry) => {
+      const key = entry.toLowerCase();
+      if (!entry || seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+}
+
+function getLocationSections(location) {
+  return normalizeLocationSections(location?.sections || []);
+}
+
+function getSectionOptions(location, selectedSection = "") {
+  const sections = getLocationSections(location);
+  if (!sections.length) return "";
+
+  return [
+    `<option value="">Whole location</option>`,
+    ...sections.map((section) => {
+      const selected = section === selectedSection ? " selected" : "";
+      return `<option value="${escapeHtml(section)}"${selected}>${escapeHtml(section)}</option>`;
+    })
+  ].join("");
+}
+
+function setupSectionPicker(form, location) {
+  const field = form.querySelector(".item-section-field");
+  const select = form.querySelector(".item-section");
+  if (!field || !select) return;
+
+  const options = getSectionOptions(location);
+  field.classList.toggle("hidden", !options);
+  select.innerHTML = options;
+}
+
 function matchesSearch(location, item = null) {
   if (!searchTerm) return true;
 
   const haystack = [
     location.name,
     location.area,
+    ...getLocationSections(location),
     item?.name,
     item?.category,
+    item?.section,
     item?.notes,
     item?.quantity
   ]
@@ -543,7 +588,7 @@ function createLabel(location, options = getLabelOptions(), autoPrint = false) {
   }
 
   const itemRows = previewItems.length
-    ? previewItems.map((item) => `<li>${escapeHtml(item.name)} <span>Qty ${escapeHtml(item.quantity)}</span></li>`).join("")
+    ? previewItems.map((item) => `<li>${escapeHtml(item.section ? `${item.section}: ${item.name}` : item.name)} <span>Qty ${escapeHtml(item.quantity)}</span></li>`).join("")
     : "";
   const isQrOnly = options.layout === "qr-only";
   const parent = getLocationById(location.parent_location_id);
@@ -720,13 +765,14 @@ async function loadCloudData() {
   render();
 }
 
-async function createLocation(name, area, parentLocationId = "", photoData = "") {
+async function createLocation(name, area, parentLocationId = "", photoData = "", sections = []) {
   const { data, error } = await supabaseClient
     .from("locations")
     .insert({
       name,
       area,
       parent_location_id: parentLocationId || null,
+      sections: normalizeLocationSections(sections),
       photo_data: photoData || null,
       user_id: state.user.id
     })
@@ -983,6 +1029,7 @@ async function createItem(location, form) {
     name: form.querySelector(".item-name").value.trim(),
     quantity: Number(form.querySelector(".item-quantity").value) || 1,
     category,
+    section: form.querySelector(".item-section")?.value.trim() || null,
     notes: form.querySelector(".item-notes").value.trim(),
     photo_data: photoData || null
   };
@@ -1096,6 +1143,7 @@ function renderLocationList(container) {
     button.querySelector(".location-meta").textContent = [
       location.area || "No area",
       location.parent_location_id ? `Inside ${getLocationPath(getLocationById(location.parent_location_id))}` : "",
+      getLocationSections(location).length ? `${getLocationSections(location).length} section${getLocationSections(location).length === 1 ? "" : "s"}` : "",
       childCount ? `${childCount} sub-location${childCount === 1 ? "" : "s"}` : ""
     ].filter(Boolean).join(" - ");
     button.addEventListener("click", () => setActiveLocation(location.id));
@@ -1134,6 +1182,7 @@ function renderLocationDetail(container) {
   qrUrl.value = getLocationUrl(location.id);
   categorySelect.innerHTML = getCategoryOptions();
   setupCategoryPicker(itemForm);
+  setupSectionPicker(itemForm, location);
   itemForm.querySelector("button").disabled = !isOwnRecord(location);
 
   const visibleItems = getLocationItems(location.id).filter((item) => matchesSearch(location, item));
@@ -1163,6 +1212,7 @@ function renderLocationDetail(container) {
     row.querySelector(".item-meta").textContent = [
       `Qty ${item.quantity}`,
       item.category,
+      item.section ? `Section: ${item.section}` : "",
       item.notes
     ].filter(Boolean).join(" - ");
     row.querySelector(".action-dot").addEventListener("click", () => openShareDialog("item", item, item.name));
@@ -1238,7 +1288,11 @@ function renderAddMode() {
     const row = createNode("article", "item-row");
     row.innerHTML = `<div>${item.photo_data ? `<img class="item-photo-thumb" src="${item.photo_data}" alt="">` : ""}<p class="item-name-text"></p><p class="item-meta"></p></div><button class="ghost-button" type="button">Open Box</button>`;
     row.querySelector(".item-name-text").textContent = item.name;
-    row.querySelector(".item-meta").textContent = `${item.category || "Item"} - ${location ? getLocationPath(location) : "Unknown location"}`;
+    row.querySelector(".item-meta").textContent = [
+      item.category || "Item",
+      location ? getLocationPath(location) : "Unknown location",
+      item.section ? `Section: ${item.section}` : ""
+    ].filter(Boolean).join(" - ");
     row.querySelector("button").addEventListener("click", () => {
       if (!location) return;
       activeMode = "home";
@@ -1267,6 +1321,10 @@ function renderAddMode() {
       Location photo
       <input class="new-location-photo" type="file" accept="image/*" capture="environment">
     </label>
+    <label>
+      Sections inside this location
+      <textarea class="new-location-sections" rows="3" placeholder="Drawer 1&#10;Drawer 2&#10;Top tray"></textarea>
+    </label>
     <p class="muted-copy">Manage place tags in Settings.</p>
     <button class="primary-button" type="submit">Create Location</button>
   `;
@@ -1276,9 +1334,10 @@ function renderAddMode() {
     const area = locationPanel.querySelector(".new-location-area").value.trim();
     const parentLocationId = locationPanel.querySelector(".new-parent-location").value;
     const photoData = await imageInputToData(locationPanel.querySelector(".new-location-photo"));
+    const sections = normalizeLocationSections(locationPanel.querySelector(".new-location-sections").value);
     if (!name) return;
     locationPanel.reset();
-    await createLocation(name, area, parentLocationId, photoData);
+    await createLocation(name, area, parentLocationId, photoData, sections);
   });
 
   const itemPanel = createNode("form", "panel item-form");
@@ -1307,6 +1366,10 @@ function renderAddMode() {
       New category
       <input class="new-category-name" autocomplete="off" placeholder="Tools">
     </label>
+    <label class="item-section-field hidden">
+      Section
+      <select class="item-section"></select>
+    </label>
     <label>
       Notes
       <textarea class="item-notes" rows="3" placeholder="Black cable, 5m"></textarea>
@@ -1318,6 +1381,12 @@ function renderAddMode() {
     <button class="primary-button" type="submit">Add Item</button>
   `;
   setupCategoryPicker(itemPanel);
+  const updateItemSections = () => {
+    const location = getLocationById(itemPanel.querySelector(".item-location").value);
+    setupSectionPicker(itemPanel, location);
+  };
+  itemPanel.querySelector(".item-location").addEventListener("change", updateItemSections);
+  updateItemSections();
 
   itemPanel.addEventListener("submit", async (event) => {
     event.preventDefault();
@@ -1362,6 +1431,10 @@ function renderEditMode() {
         Inside
         <select class="edit-parent">${getLocationOptions(location.parent_location_id || "", location.id)}</select>
       </label>
+      <label>
+        Sections inside this location
+        <textarea class="edit-sections" rows="4" placeholder="Drawer 1&#10;Drawer 2&#10;Top tray">${escapeHtml(getLocationSections(location).join("\n"))}</textarea>
+      </label>
       ${location.photo_data ? `<img class="location-photo" src="${location.photo_data}" alt="">` : ""}
       <label>
         Replace photo
@@ -1386,6 +1459,7 @@ function renderEditMode() {
         name: form.querySelector(".edit-name").value.trim(),
         area: form.querySelector(".edit-area").value.trim(),
         parent_location_id: form.querySelector(".edit-parent").value || null,
+        sections: normalizeLocationSections(form.querySelector(".edit-sections").value),
         ...(photoData ? { photo_data: photoData } : {})
       });
     });
@@ -1455,10 +1529,11 @@ function renderMoveMode() {
       `;
       card.querySelector(".move-item-name").textContent = item.name;
       card.querySelector(".move-item-meta").textContent = [
-        `Qty ${item.quantity}`,
-        item.category,
-        item.notes
-      ].filter(Boolean).join(" - ");
+      `Qty ${item.quantity}`,
+      item.category,
+      item.section ? `Section: ${item.section}` : "",
+      item.notes
+    ].filter(Boolean).join(" - ");
       card.addEventListener("dragstart", (event) => {
         draggedItemId = item.id;
         card.classList.add("dragging");
@@ -1657,6 +1732,7 @@ function renderSharedMode() {
       <p class="muted-copy">${escapeHtml([
         `Qty ${item.quantity}`,
         location ? getLocationPath(location) : "Location unavailable",
+        item.section ? `Section: ${item.section}` : "",
         item.notes
       ].filter(Boolean).join(" - "))}</p>
       <div class="edit-actions">
