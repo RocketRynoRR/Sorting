@@ -2,7 +2,9 @@ const SUPABASE_URL = "https://txdkcgotbeghwzlhcrzf.supabase.co";
 const SUPABASE_PUBLISHABLE_KEY = "sb_publishable_32jx4KbrFRdjkxSRUGN76A_pTrETJx0";
 const SITE_BASE_URL = "https://rocketrynorr.github.io/Sorting/";
 
-const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY);
+const supabaseClient = window.supabase
+  ? window.supabase.createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY)
+  : null;
 
 const state = {
   user: null,
@@ -62,12 +64,16 @@ const els = {
 };
 
 function setMessage(message) {
-  els.authMessage.textContent = message || "";
+  if (els.authMessage) {
+    els.authMessage.textContent = message || "";
+  }
 }
 
 function setSyncStatus(message, online = false) {
-  els.syncStatus.textContent = message;
-  els.syncStatus.classList.toggle("online", online);
+  if (els.syncStatus) {
+    els.syncStatus.textContent = message;
+    els.syncStatus.classList.toggle("online", online);
+  }
 }
 
 function showError(error) {
@@ -206,6 +212,11 @@ function applyLabelPreset(presetName) {
 }
 
 function openLabelDesigner(location) {
+  if (!els.labelDesigner) {
+    createLabel(location);
+    return;
+  }
+
   labelLocationId = location.id;
   document.querySelector("#labelDesignerTitle").textContent = `${location.name} Label`;
   els.labelDesigner.classList.remove("hidden");
@@ -304,6 +315,14 @@ function createLabel(location, options = getLabelOptions(), autoPrint = false) {
 }
 
 async function loadCloudData() {
+  if (!supabaseClient) {
+    state.loading = false;
+    setMessage("Supabase could not load. Refresh the page or check your connection.");
+    setSyncStatus("Sync unavailable");
+    render();
+    return;
+  }
+
   if (!state.user) {
     state.locations = [];
     state.items = [];
@@ -793,22 +812,28 @@ function render() {
   const signedIn = Boolean(state.user);
   els.authPanel.classList.toggle("hidden", signedIn);
   els.signOutButton.classList.toggle("hidden", !signedIn);
-  els.exportButton.disabled = !signedIn;
-
-  if (!signedIn) {
-    setSyncStatus("Sign in");
-  }
+  els.exportButton.disabled = !signedIn || !supabaseClient;
 
   els.modeTabs.forEach((tab) => {
-    tab.classList.toggle("active", tab.dataset.mode === activeMode);
+    tab.disabled = !supabaseClient;
   });
 
+  if (!signedIn) {
+    setSyncStatus(supabaseClient ? "Sign in" : "Sync unavailable");
+  }
+
+  els.modeTabs.forEach((tab) => tab.classList.toggle("active", tab.dataset.mode === activeMode));
   renderSummary();
   renderModePanel();
 }
 
 els.authForm.addEventListener("submit", async (event) => {
   event.preventDefault();
+  if (!supabaseClient) {
+    setMessage("Supabase could not load. Refresh the page and try again.");
+    return;
+  }
+
   const credentials = getAuthCredentials();
   if (!credentials) return;
 
@@ -828,6 +853,11 @@ els.authForm.addEventListener("submit", async (event) => {
 });
 
 els.signUpButton.addEventListener("click", async () => {
+  if (!supabaseClient) {
+    setMessage("Supabase could not load. Refresh the page and try again.");
+    return;
+  }
+
   const credentials = getAuthCredentials();
   if (!credentials) return;
 
@@ -849,6 +879,7 @@ els.signUpButton.addEventListener("click", async () => {
 });
 
 els.signOutButton.addEventListener("click", async () => {
+  if (!supabaseClient) return;
   await supabaseClient.auth.signOut();
 });
 
@@ -856,42 +887,44 @@ els.modeTabs.forEach((tab) => {
   tab.addEventListener("click", () => setMode(tab.dataset.mode));
 });
 
-els.labelPreset.addEventListener("change", () => {
-  applyLabelPreset(els.labelPreset.value);
-});
-
-[
-  els.labelWidth,
-  els.labelHeight,
-  els.labelQrSize,
-  els.labelTitleSize,
-  els.labelTextSize,
-  els.labelItemLimit,
-  els.labelLayout
-].forEach((control) => {
-  control.addEventListener("input", () => {
-    if (els.labelPreset.value !== "custom") {
-      els.labelPreset.value = "custom";
-    }
+if (els.labelPreset) {
+  els.labelPreset.addEventListener("change", () => {
+    applyLabelPreset(els.labelPreset.value);
   });
-});
 
-els.closeLabelDesigner.addEventListener("click", closeLabelDesigner);
+  [
+    els.labelWidth,
+    els.labelHeight,
+    els.labelQrSize,
+    els.labelTitleSize,
+    els.labelTextSize,
+    els.labelItemLimit,
+    els.labelLayout
+  ].filter(Boolean).forEach((control) => {
+    control.addEventListener("input", () => {
+      if (els.labelPreset.value !== "custom") {
+        els.labelPreset.value = "custom";
+      }
+    });
+  });
+}
 
-els.labelDesigner.addEventListener("click", (event) => {
+els.closeLabelDesigner?.addEventListener("click", closeLabelDesigner);
+
+els.labelDesigner?.addEventListener("click", (event) => {
   if (event.target === els.labelDesigner) {
     closeLabelDesigner();
   }
 });
 
-els.previewLabelButton.addEventListener("click", () => {
+els.previewLabelButton?.addEventListener("click", () => {
   const location = state.locations.find((candidate) => candidate.id === labelLocationId);
   if (location) {
     createLabel(location, getLabelOptions(), false);
   }
 });
 
-els.labelDesignerForm.addEventListener("submit", (event) => {
+els.labelDesignerForm?.addEventListener("submit", (event) => {
   event.preventDefault();
   const location = state.locations.find((candidate) => candidate.id === labelLocationId);
   if (location) {
@@ -933,15 +966,21 @@ window.addEventListener("hashchange", () => {
   }
 });
 
-supabaseClient.auth.onAuthStateChange((_event, session) => {
-  state.user = session?.user || null;
-  setMessage("");
-  loadCloudData();
-});
+if (supabaseClient) {
+  supabaseClient.auth.onAuthStateChange((_event, session) => {
+    state.user = session?.user || null;
+    setMessage("");
+    loadCloudData();
+  });
 
-supabaseClient.auth.getSession().then(({ data }) => {
-  state.user = data.session?.user || null;
-  loadCloudData();
-});
+  supabaseClient.auth.getSession().then(({ data }) => {
+    state.user = data.session?.user || null;
+    loadCloudData();
+  });
+} else {
+  state.loading = false;
+  setMessage("Supabase could not load. Refresh the page or check your connection.");
+  setSyncStatus("Sync unavailable");
+}
 
 render();
