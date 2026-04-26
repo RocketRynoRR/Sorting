@@ -568,6 +568,19 @@ button:disabled {
   min-width: 78px;
 }
 
+.search-icon-button {
+  width: 44px;
+  height: 44px;
+  display: none;
+  place-items: center;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--button-soft);
+  color: var(--ink);
+  font-size: 1.25rem;
+  font-weight: 900;
+}
+
 .search-results {
   position: absolute;
   z-index: 20;
@@ -1017,9 +1030,18 @@ textarea:focus {
   }
 
   .search-bubble {
+    display: none;
     max-width: none;
     width: 100%;
     grid-template-columns: 1fr;
+  }
+
+  .search-bubble.open {
+    display: grid;
+  }
+
+  .search-icon-button:not(.hidden) {
+    display: grid;
   }
 
   .detail-actions,
@@ -1050,11 +1072,29 @@ textarea:focus {
   }
 
   .auth-panel,
-  .summary-grid,
   .label-control-grid,
   .label-checks,
   .item-form-grid {
     grid-template-columns: 1fr;
+  }
+
+  .summary-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 6px;
+  }
+
+  .summary-card {
+    padding: 9px 6px;
+    text-align: center;
+  }
+
+  .summary-card span {
+    font-size: 0.62rem;
+  }
+
+  .summary-card strong {
+    margin-top: 4px;
+    font-size: 1.25rem;
   }
 
   .mode-tabs {

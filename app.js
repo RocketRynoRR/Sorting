@@ -22,6 +22,7 @@ let searchTerm = "";
 let draggedItemId = "";
 let labelLocationId = "";
 let shareTarget = null;
+let searchOpen = false;
 const expandedLocationIds = new Set();
 
 const labelPresets = {
@@ -45,6 +46,7 @@ const els = {
   signOutButton: document.querySelector("#signOutButton"),
   syncStatus: document.querySelector("#syncStatus"),
   exportButton: document.querySelector("#exportButton"),
+  searchToggleButton: document.querySelector("#searchToggleButton"),
   searchInput: document.querySelector("#searchInput"),
   searchToolbar: document.querySelector("#searchToolbar"),
   searchResults: document.querySelector("#searchResults"),
@@ -1827,8 +1829,13 @@ function render() {
   els.accountMenu.classList.toggle("hidden", !signedIn);
   els.accountButton.textContent = getAccountInitial();
   els.exportButton.disabled = !signedIn || !supabaseClient;
+  if (els.searchToggleButton) {
+    els.searchToggleButton.classList.toggle("hidden", !signedIn);
+    els.searchToggleButton.setAttribute("aria-expanded", String(searchOpen));
+  }
   if (els.searchToolbar) {
     els.searchToolbar.classList.toggle("hidden", !signedIn);
+    els.searchToolbar.classList.toggle("open", searchOpen);
   }
 
   els.modeTabs.forEach((tab) => {
@@ -1928,6 +1935,17 @@ els.modeTabs.forEach((tab) => {
 
 els.mobileModeSelect?.addEventListener("change", (event) => {
   setMode(event.target.value);
+});
+
+els.searchToggleButton?.addEventListener("click", () => {
+  searchOpen = !searchOpen;
+  if (searchOpen) {
+    els.searchToolbar?.classList.add("open");
+    window.setTimeout(() => els.searchInput?.focus(), 0);
+  } else {
+    els.searchToolbar?.classList.remove("open");
+  }
+  render();
 });
 
 if (els.labelPreset) {
