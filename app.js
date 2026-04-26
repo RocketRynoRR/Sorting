@@ -51,6 +51,23 @@ function showError(error) {
   setSyncStatus("Sync issue");
 }
 
+function getAuthCredentials() {
+  const email = els.authEmail.value.trim();
+  const password = els.authPassword.value;
+
+  if (!email || !password) {
+    setMessage("Enter an email and password first.");
+    return null;
+  }
+
+  if (password.length < 6) {
+    setMessage("Password must be at least 6 characters.");
+    return null;
+  }
+
+  return { email, password };
+}
+
 function getLocationItems(locationId) {
   return state.items.filter((item) => item.location_id === locationId);
 }
@@ -418,10 +435,13 @@ function render() {
 
 els.authForm.addEventListener("submit", async (event) => {
   event.preventDefault();
+  const credentials = getAuthCredentials();
+  if (!credentials) return;
+
   setMessage("Signing in...");
   const { error } = await supabaseClient.auth.signInWithPassword({
-    email: els.authEmail.value.trim(),
-    password: els.authPassword.value
+    email: credentials.email,
+    password: credentials.password
   });
 
   if (error) {
@@ -434,10 +454,16 @@ els.authForm.addEventListener("submit", async (event) => {
 });
 
 els.signUpButton.addEventListener("click", async () => {
+  const credentials = getAuthCredentials();
+  if (!credentials) return;
+
   setMessage("Creating account...");
-  const { error } = await supabaseClient.auth.signUp({
-    email: els.authEmail.value.trim(),
-    password: els.authPassword.value
+  const { data, error } = await supabaseClient.auth.signUp({
+    email: credentials.email,
+    password: credentials.password,
+    options: {
+      emailRedirectTo: SITE_BASE_URL
+    }
   });
 
   if (error) {
@@ -445,7 +471,12 @@ els.signUpButton.addEventListener("click", async () => {
     return;
   }
 
-  setMessage("Account created. Check your email if confirmation is enabled, then sign in.");
+  if (data.session) {
+    setMessage("Account created. You are signed in.");
+    return;
+  }
+
+  setMessage("Account created. Check your email, confirm the account, then sign in.");
 });
 
 els.signOutButton.addEventListener("click", async () => {
