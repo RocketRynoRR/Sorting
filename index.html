@@ -10,7 +10,16 @@
   <h1>QR Storage Manager</h1>
 
   <p>Manage storage boxes and locations</p>
+<h2>Add Main Location</h2>
 
+<input type="text" id="mainLocationName" placeholder="Work, Home, Shed etc.">
+
+<button onclick="addMainLocation()">Add Location</button>
+
+<h2>Select Main Location</h2>
+
+<select id="selectedMainLocation" onchange="displayBoxes()">
+</select>
   <h2>Add New Box</h2>
 
   <input type="text" id="boxName" placeholder="Box Name">
@@ -26,19 +35,62 @@
   <script>
 
     let boxes = [];
+let mainLocations = [];
 const savedBoxes = localStorage.getItem("boxes");
 
 if (savedBoxes) {
   boxes = JSON.parse(savedBoxes);
   displayBoxes();
 }
+    const savedMainLocations = localStorage.getItem("mainLocations");
+
+if (savedMainLocations) {
+  mainLocations = JSON.parse(savedMainLocations);
+}
+
+function addMainLocation() {
+  const name = document.getElementById("mainLocationName").value;
+
+  if (name.trim() === "") {
+    alert("Please enter a location name.");
+    return;
+  }
+
+  const location = {
+    id: "LOC" + (mainLocations.length + 1).toString().padStart(3, "0"),
+    name: name
+  };
+
+  mainLocations.push(location);
+
+  localStorage.setItem("mainLocations", JSON.stringify(mainLocations));
+
+  document.getElementById("mainLocationName").value = "";
+
+  displayMainLocations();
+}
+
+function displayMainLocations() {
+  const select = document.getElementById("selectedMainLocation");
+
+  select.innerHTML = "";
+
+  mainLocations.forEach((location) => {
+    select.innerHTML += `
+      <option value="${location.id}">${location.name}</option>
+    `;
+  });
+}
     function addBox() {
 
       const name = document.getElementById("boxName").value;
       const location = document.getElementById("boxLocation").value;
 
-      const box = {
+      const selectedMainLocation = document.getElementById("selectedMainLocation").value;
+
+const box = {
   id: "BOX" + (boxes.length + 1).toString().padStart(3, "0"),
+  mainLocationId: selectedMainLocation,
   name: name,
   location: location
 };
@@ -56,7 +108,11 @@ if (savedBoxes) {
 
       boxList.innerHTML = "";
 
-      boxes.forEach((box) => {
+      const selectedMainLocation = document.getElementById("selectedMainLocation").value;
+
+const filteredBoxes = boxes.filter(box => box.mainLocationId === selectedMainLocation);
+
+filteredBoxes.forEach((box) => {
 
         boxList.innerHTML += `
           <div style="
@@ -70,7 +126,8 @@ if (savedBoxes) {
         `;
       });
     }
-
+displayMainLocations();
+displayBoxes();
   </script>
 
 </body>
