@@ -3,6 +3,7 @@
 
 <head>
   <title>QR Storage Manager</title>
+  <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
 </head>
 
 <body>
@@ -114,18 +115,42 @@ const filteredBoxes = boxes.filter(box => box.mainLocationId === selectedMainLoc
 
 filteredBoxes.forEach((box) => {
 
-        boxList.innerHTML += `
-          <div style="
-            border:1px solid #ccc;
-            padding:10px;
-            margin-bottom:10px;
-          ">
-            <h3>${box.id} - ${box.name}</h3>
-            <p>Location: ${box.location}</p>
-          </div>
-        `;
+       boxList.innerHTML += `
+  <div style="
+    border:1px solid #ccc;
+    padding:10px;
+    margin-bottom:10px;
+  ">
+    <h3>${box.id} - ${box.name}</h3>
+    <p>Location: ${box.location}</p>
+
+    <button onclick="generateQRCode('${box.id}')">
+      Create QR Code
+    </button>
+
+    <div id="qr-${box.id}" style="margin-top:10px;"></div>
+
+  </div>
+`;
       });
     }
+    function generateQRCode(boxId) {
+
+  const qrContainer = document.getElementById("qr-" + boxId);
+
+  qrContainer.innerHTML = "";
+
+  QRCode.toCanvas(boxId, function (error, canvas) {
+
+    if (error) {
+      console.error(error);
+      return;
+    }
+
+    qrContainer.appendChild(canvas);
+
+  });
+}
 displayMainLocations();
 displayBoxes();
   </script>
