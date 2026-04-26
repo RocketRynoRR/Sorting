@@ -387,6 +387,35 @@ function renderGlobalSearchResults() {
   });
 }
 
+function getSearchMatches(limitResults = true) {
+  const term = searchTerm.trim().toLowerCase();
+  if (!term) return { locations: [], items: [], categories: [] };
+
+  const locations = state.locations.filter((location) => matchesSearch(location));
+  const items = state.items.filter((item) => {
+    const location = getLocationById(item.location_id);
+    return location && matchesSearch(location, item);
+  });
+  const categories = getCategoryNames().filter((name) => name.toLowerCase().includes(term));
+
+  return {
+    locations: limitResults ? locations.slice(0, 8) : locations,
+    items: limitResults ? items.slice(0, 12) : items,
+    categories: limitResults ? categories.slice(0, 8) : categories
+  };
+}
+
+function addSearchResult(container, label, meta, onClick) {
+  const button = document.createElement("button");
+  button.className = "search-result";
+  button.type = "button";
+  button.innerHTML = `<span></span><small></small>`;
+  button.querySelector("span").textContent = label;
+  button.querySelector("small").textContent = meta;
+  button.addEventListener("click", onClick);
+  container.append(button);
+}
+
 function getVisibleLocations() {
   if (!searchTerm) return state.locations;
 
@@ -1780,6 +1809,85 @@ function renderSharedMode() {
   els.modePanel.replaceChildren(wrapper);
 }
 
+function renderSearchMode() {
+  const panel = createNode("section", "panel search-page");
+  panel.innerHTML = `
+    <div class="section-heading">
+      <div>
+        <p class="eyebrow">Search</p>
+        <h2>Find Storage</h2>
+      </div>
+      <span class="count-pill">0</span>
+    </div>
+    <div class="search-page-actions">
+      <label>
+        Search
+        <input class="search-page-input" autocomplete="off" placeholder="Find items, locations, categories">
+      </label>
+      <button class="ghost-button search-page-clear" type="button">Clear</button>
+    </div>
+    <div class="items-list search-page-results"></div>
+  `;
+
+  const input = panel.querySelector(".search-page-input");
+  const results = panel.querySelector(".search-page-results");
+  const count = panel.querySelector(".count-pill");
+  input.value = searchTerm;
+  input.addEventListener("input", (event) => {
+    searchTerm = event.target.value.trim();
+    if (els.searchInput) els.searchInput.value = searchTerm;
+    renderSearchMode();
+  });
+  panel.querySelector(".search-page-clear").addEventListener("click", () => {
+    searchTerm = "";
+    if (els.searchInput) els.searchInput.value = "";
+    renderSearchMode();
+  });
+
+  const matches = getSearchMatches(false);
+  const total = matches.locations.length + matches.items.length + matches.categories.length;
+  count.textContent = total;
+
+  if (!searchTerm) {
+    results.append(createNode("p", "item-meta", "Type to search your items, locations, and categories."));
+  } else if (!total) {
+    results.append(createNode("p", "item-meta", "No matching items, locations, or categories."));
+  }
+
+  matches.locations.forEach((location) => {
+    addSearchResult(results, getLocationPath(location), `Location - ${location.area || "Storage"}`, () => {
+      activeMode = "home";
+      setActiveLocation(location.id);
+    });
+  });
+
+  matches.items.forEach((item) => {
+    const location = getLocationById(item.location_id);
+    addSearchResult(results, item.name, [
+      "Item",
+      item.category,
+      location ? getLocationPath(location) : "",
+      item.section ? `Section: ${item.section}` : ""
+    ].filter(Boolean).join(" - "), () => {
+      activeMode = "home";
+      setActiveLocation(item.location_id);
+    });
+  });
+
+  matches.categories.forEach((category) => {
+    addSearchResult(results, category, "Category tag", () => {
+      activeMode = "settings";
+      render();
+    });
+  });
+
+  els.modePanel.replaceChildren(panel);
+  window.setTimeout(() => {
+    const active = document.activeElement;
+    if (!active || active === document.body) input.focus();
+  }, 0);
+}
+
 function renderModePanel() {
   if (state.loading || !state.user) {
     renderEmptyState();
@@ -1788,6 +1896,11 @@ function renderModePanel() {
 
   if (activeMode === "add") {
     renderAddMode();
+    return;
+  }
+
+  if (activeMode === "search") {
+    renderSearchMode();
     return;
   }
 
@@ -1938,13 +2051,8 @@ els.mobileModeSelect?.addEventListener("change", (event) => {
 });
 
 els.searchToggleButton?.addEventListener("click", () => {
-  searchOpen = !searchOpen;
-  if (searchOpen) {
-    els.searchToolbar?.classList.add("open");
-    window.setTimeout(() => els.searchInput?.focus(), 0);
-  } else {
-    els.searchToolbar?.classList.remove("open");
-  }
+  searchOpen = false;
+  activeMode = "search";
   render();
 });
 
