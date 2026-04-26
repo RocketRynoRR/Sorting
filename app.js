@@ -11,6 +11,8 @@ const state = {
   locations: [],
   items: [],
   places: [],
+  categories: [],
+  settings: { dark_mode: false },
   loading: true
 };
 
@@ -44,6 +46,7 @@ const els = {
   exportButton: document.querySelector("#exportButton"),
   searchInput: document.querySelector("#searchInput"),
   clearSearchButton: document.querySelector("#clearSearchButton"),
+  mobileModeSelect: document.querySelector("#mobileModeSelect"),
   modePanel: document.querySelector("#modePanel"),
   modeTabs: document.querySelectorAll(".mode-tab"),
   summaryLocations: document.querySelector("#summaryLocations"),
@@ -65,6 +68,7 @@ const els = {
   labelShowCount: document.querySelector("#labelShowCount"),
   labelShowContents: document.querySelector("#labelShowContents"),
   labelShowUrl: document.querySelector("#labelShowUrl"),
+  labelPreview: document.querySelector("#labelPreview"),
   shareDialog: document.querySelector("#shareDialog"),
   shareForm: document.querySelector("#shareForm"),
   shareDialogTitle: document.querySelector("#shareDialogTitle"),
@@ -193,7 +197,24 @@ function getPlaceOptions(selectedPlace = "") {
     return `<option value="${escapeHtml(name)}"${isSelected}>${escapeHtml(name)}</option>`;
   }).join("");
 
-  return `<option value="">No place</option>${options}`;
+  return options || `<option value="" disabled selected>Add place tags in Settings</option>`;
+}
+
+function getCategoryNames() {
+  const saved = state.categories.map((category) => category.name).filter(Boolean);
+  const used = state.items.map((item) => item.category).filter(Boolean);
+  return [...new Set([...saved, ...used])].sort((a, b) => a.localeCompare(b));
+}
+
+function getCategoryOptions(selectedCategory = "") {
+  const names = getCategoryNames();
+  const selected = selectedCategory || names[0] || "";
+  const options = names.map((name) => {
+    const isSelected = name === selected ? " selected" : "";
+    return `<option value="${escapeHtml(name)}"${isSelected}>${escapeHtml(name)}</option>`;
+  }).join("");
+
+  return options || `<option value="" disabled selected>Add category tags in Settings</option>`;
 }
 
 function setActiveLocation(locationId, updateHash = true) {
@@ -206,7 +227,14 @@ function setActiveLocation(locationId, updateHash = true) {
 
 function setMode(mode) {
   activeMode = mode;
+  if (els.mobileModeSelect) {
+    els.mobileModeSelect.value = mode;
+  }
   render();
+}
+
+function applyTheme() {
+  document.body.classList.toggle("dark-mode", Boolean(state.settings.dark_mode));
 }
 
 function createNode(tagName, className = "", text = "") {
@@ -259,11 +287,54 @@ function openLabelDesigner(location) {
   labelLocationId = location.id;
   document.querySelector("#labelDesignerTitle").textContent = `${location.name} Label`;
   els.labelDesigner.classList.remove("hidden");
+  renderLabelPreview();
 }
 
 function closeLabelDesigner() {
   labelLocationId = "";
   els.labelDesigner.classList.add("hidden");
+}
+
+function renderLabelPreview() {
+  if (!els.labelPreview || !labelLocationId) return;
+
+  const location = state.locations.find((candidate) => candidate.id === labelLocationId);
+  if (!location) return;
+
+  const options = getLabelOptions();
+  const items = getLocationItems(location.id);
+  const previewItems = options.showContents ? items.slice(0, Math.max(options.itemLimit, 0)) : [];
+  const isQrOnly = options.layout === "qr-only";
+  const scale = Math.min(1.6, 250 / Math.max(options.width, options.height));
+  const label = createNode("div", `preview-label ${options.layout}`);
+  label.style.width = `${options.width * scale}px`;
+  label.style.minHeight = `${options.height * scale}px`;
+  label.style.gridTemplateColumns = options.layout === "side" ? `${options.qrSize * scale}px 1fr` : "";
+
+  const qr = createNode("div", "preview-qr", "QR");
+  qr.style.width = `${options.qrSize * scale}px`;
+  qr.style.height = `${options.qrSize * scale}px`;
+  label.append(qr);
+
+  if (!isQrOnly) {
+    const body = createNode("div");
+    if (options.showPlace) body.append(createNode("p", "eyebrow", location.area || "Storage"));
+    const title = createNode("h3", "", location.name);
+    title.style.fontSize = `${Math.max(options.titleSize * 0.8, 10)}px`;
+    body.append(title);
+    if (options.showCount) body.append(createNode("p", "item-meta", `${items.length} item${items.length === 1 ? "" : "s"}`));
+    if (previewItems.length) {
+      const list = createNode("ul");
+      previewItems.forEach((item) => {
+        list.append(createNode("li", "", `${item.name} x${item.quantity}`));
+      });
+      body.append(list);
+    }
+    if (options.showUrl) body.append(createNode("p", "item-meta", getLocationUrl(location.id)));
+    label.append(body);
+  }
+
+  els.labelPreview.replaceChildren(label);
 }
 
 function openShareDialog(type, record, title) {
@@ -385,6 +456,9 @@ async function loadCloudData() {
     state.locations = [];
     state.items = [];
     state.places = [];
+    state.categories = [];
+    state.settings = { dark_mode: false };
+    applyTheme();
     state.loading = false;
     render();
     return;
@@ -397,11 +471,15 @@ async function loadCloudData() {
   const [
     { data: locations, error: locationsError },
     { data: items, error: itemsError },
-    { data: places, error: placesError }
+    { data: places, error: placesError },
+    { data: categories, error: categoriesError },
+    { data: settings, error: settingsError }
   ] = await Promise.all([
     supabaseClient.from("locations").select("*").order("created_at", { ascending: false }),
     supabaseClient.from("items").select("*").order("created_at", { ascending: false }),
-    supabaseClient.from("places").select("*").order("name", { ascending: true })
+    supabaseClient.from("places").select("*").order("name", { ascending: true }),
+    supabaseClient.from("categories").select("*").order("name", { ascending: true }),
+    supabaseClient.from("user_settings").select("*").eq("user_id", state.user.id).maybeSingle()
   ]);
 
   if (locationsError || itemsError) {
@@ -414,10 +492,15 @@ async function loadCloudData() {
   state.locations = locations || [];
   state.items = items || [];
   state.places = placesError ? [] : places || [];
-  if (placesError) {
-    setMessage("Run the updated Supabase setup SQL to enable place tags.");
+  state.categories = categoriesError ? [] : categories || [];
+  state.settings = settingsError || !settings ? { dark_mode: false } : settings;
+  applyTheme();
+  if (placesError || categoriesError || settingsError) {
+    setMessage("Run the updated Supabase setup SQL to enable tags and settings.");
   } else {
     await createDefaultPlaces();
+    await createDefaultCategories();
+    await ensureUserSettings();
   }
 
   const hashLocation = readHashLocation();
@@ -502,6 +585,100 @@ async function createDefaultPlaces() {
   if (!error) {
     state.places = data || [];
   }
+}
+
+async function ensureUserSettings() {
+  if (!state.user || state.settings.user_id) return;
+
+  const { data, error } = await supabaseClient
+    .from("user_settings")
+    .insert({ user_id: state.user.id, dark_mode: Boolean(state.settings.dark_mode) })
+    .select()
+    .single();
+
+  if (!error && data) {
+    state.settings = data;
+    applyTheme();
+  }
+}
+
+async function updateDarkMode(enabled) {
+  state.settings = { ...state.settings, dark_mode: enabled };
+  applyTheme();
+
+  const { data, error } = await supabaseClient
+    .from("user_settings")
+    .upsert({
+      user_id: state.user.id,
+      dark_mode: enabled,
+      updated_at: new Date().toISOString()
+    })
+    .select()
+    .single();
+
+  if (error) {
+    showError(error);
+    return;
+  }
+
+  state.settings = data;
+  applyTheme();
+  setSyncStatus("Synced", true);
+  render();
+}
+
+async function createCategory(name) {
+  const cleanName = name.trim();
+  if (!cleanName) return;
+
+  const { data, error } = await supabaseClient
+    .from("categories")
+    .insert({ name: cleanName, user_id: state.user.id })
+    .select()
+    .single();
+
+  if (error) {
+    showError(error);
+    return;
+  }
+
+  state.categories.push(data);
+  state.categories.sort((a, b) => a.name.localeCompare(b.name));
+  setSyncStatus("Synced", true);
+  render();
+}
+
+async function createDefaultCategories() {
+  if (!state.user || state.categories.length || state.items.length) return;
+
+  const defaults = ["Tools", "Cables", "Documents", "Kitchen", "Camping", "Cleaning", "Electronics", "Clothes"];
+  const { data, error } = await supabaseClient
+    .from("categories")
+    .insert(defaults.map((name) => ({ name, user_id: state.user.id })))
+    .select();
+
+  if (!error) {
+    state.categories = data || [];
+  }
+}
+
+async function deleteCategory(category) {
+  const used = state.items.some((item) => item.category === category.name);
+  const message = used
+    ? `${category.name} is used by items. Delete the tag anyway? Existing items keep their current category text.`
+    : `Delete ${category.name}?`;
+  if (!window.confirm(message)) return;
+
+  const { error } = await supabaseClient.from("categories").delete().eq("id", category.id);
+
+  if (error) {
+    showError(error);
+    return;
+  }
+
+  state.categories = state.categories.filter((candidate) => candidate.id !== category.id);
+  setSyncStatus("Synced", true);
+  render();
 }
 
 async function deletePlace(place) {
@@ -686,6 +863,7 @@ function renderLocationDetail(container) {
   const qrImage = content.querySelector(".qr-image");
   const qrUrl = content.querySelector(".qr-url");
   const itemForm = content.querySelector(".item-form");
+  const categorySelect = content.querySelector(".item-category");
   const itemsList = content.querySelector(".items-list");
   const itemCount = content.querySelector(".item-count");
 
@@ -694,6 +872,8 @@ function renderLocationDetail(container) {
   qrImage.src = getQrUrl(location.id);
   qrImage.alt = `QR code for ${location.name}`;
   qrUrl.value = getLocationUrl(location.id);
+  categorySelect.innerHTML = getCategoryOptions();
+  itemForm.querySelector("button").disabled = !isOwnRecord(location) || !getCategoryNames().length;
 
   const visibleItems = getLocationItems(location.id).filter((item) => matchesSearch(location, item));
   itemCount.textContent = visibleItems.length;
@@ -738,7 +918,6 @@ function renderLocationDetail(container) {
     await createItem(location, itemForm);
   });
 
-  itemForm.querySelector("button").disabled = !isOwnRecord(location);
   content.querySelector(".share-location-button").addEventListener("click", () => openShareDialog("location", location, location.name));
   content.querySelector(".label-button").addEventListener("click", () => openLabelDesigner(location));
   content.querySelector(".delete-location-button").addEventListener("click", () => deleteLocation(location));
@@ -801,7 +980,7 @@ function renderAddMode() {
     </div>
     <label>
       Category
-      <input class="item-category" autocomplete="off" placeholder="Tools">
+      <select class="item-category" required>${getCategoryOptions()}</select>
     </label>
     <label>
       Notes
@@ -820,6 +999,12 @@ function renderAddMode() {
 
   if (!state.locations.length) {
     itemPanel.querySelector("button").disabled = true;
+  }
+  if (!getCategoryNames().length) {
+    itemPanel.querySelector("button").disabled = true;
+  }
+  if (!getPlaceNames().length) {
+    locationPanel.querySelector("button").disabled = true;
   }
 
   wrapper.append(locationPanel, itemPanel);
@@ -956,6 +1141,21 @@ function renderMoveMode() {
 
 function renderSettingsMode() {
   const wrapper = createNode("section", "add-grid");
+  const preferencesPanel = createNode("section", "panel compact-form");
+  preferencesPanel.innerHTML = `
+    <h2>Preferences</h2>
+    <label class="toggle-row">
+      <span>
+        Dark mode
+        <small>Saved to your account</small>
+      </span>
+      <input class="dark-mode-toggle" type="checkbox"${state.settings.dark_mode ? " checked" : ""}>
+    </label>
+  `;
+  preferencesPanel.querySelector(".dark-mode-toggle").addEventListener("change", (event) => {
+    updateDarkMode(event.target.checked);
+  });
+
   const addPanel = createNode("form", "panel compact-form");
   addPanel.innerHTML = `
     <h2>Place Tags</h2>
@@ -1009,7 +1209,54 @@ function renderSettingsMode() {
     list.append(createNode("p", "item-meta", "No place tags yet."));
   }
 
-  wrapper.append(addPanel, listPanel);
+  const categoryAddPanel = createNode("form", "panel compact-form");
+  categoryAddPanel.innerHTML = `
+    <h2>Category Tags</h2>
+    <p class="muted-copy">Create reusable item categories like Tools, Cables, Documents, or Kitchen.</p>
+    <label>
+      New category
+      <input class="new-category-name" autocomplete="off" placeholder="Tools" required>
+    </label>
+    <button class="primary-button" type="submit">Add Category Tag</button>
+  `;
+  categoryAddPanel.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const input = categoryAddPanel.querySelector(".new-category-name");
+    await createCategory(input.value);
+    categoryAddPanel.reset();
+  });
+
+  const categoryListPanel = createNode("section", "panel");
+  categoryListPanel.innerHTML = `
+    <div class="section-heading">
+      <h2>Saved Categories</h2>
+      <span class="count-pill">${state.categories.length}</span>
+    </div>
+    <div class="items-list"></div>
+  `;
+  const categoryList = categoryListPanel.querySelector(".items-list");
+
+  state.categories.forEach((category) => {
+    const row = createNode("article", "item-row");
+    const usedCount = state.items.filter((item) => item.category === category.name).length;
+    row.innerHTML = `
+      <div>
+        <p class="item-name-text"></p>
+        <p class="item-meta"></p>
+      </div>
+      <button class="danger-button" type="button">Remove</button>
+    `;
+    row.querySelector(".item-name-text").textContent = category.name;
+    row.querySelector(".item-meta").textContent = `${usedCount} item${usedCount === 1 ? "" : "s"}`;
+    row.querySelector(".danger-button").addEventListener("click", () => deleteCategory(category));
+    categoryList.append(row);
+  });
+
+  if (!state.categories.length) {
+    categoryList.append(createNode("p", "item-meta", "No category tags yet."));
+  }
+
+  wrapper.append(preferencesPanel, addPanel, listPanel, categoryAddPanel, categoryListPanel);
   els.modePanel.replaceChildren(wrapper);
 }
 
@@ -1108,6 +1355,9 @@ function render() {
   }
 
   els.modeTabs.forEach((tab) => tab.classList.toggle("active", tab.dataset.mode === activeMode));
+  if (els.mobileModeSelect) {
+    els.mobileModeSelect.value = activeMode;
+  }
   renderSummary();
   if (signedIn) {
     renderModePanel();
@@ -1190,10 +1440,15 @@ els.modeTabs.forEach((tab) => {
   tab.addEventListener("click", () => setMode(tab.dataset.mode));
 });
 
+els.mobileModeSelect?.addEventListener("change", (event) => {
+  setMode(event.target.value);
+});
+
 if (els.labelPreset) {
-  els.labelPreset.addEventListener("change", () => {
-    applyLabelPreset(els.labelPreset.value);
-  });
+els.labelPreset.addEventListener("change", () => {
+  applyLabelPreset(els.labelPreset.value);
+  renderLabelPreview();
+});
 
   [
     els.labelWidth,
@@ -1205,11 +1460,21 @@ if (els.labelPreset) {
     els.labelLayout
   ].filter(Boolean).forEach((control) => {
     control.addEventListener("input", () => {
-      if (els.labelPreset.value !== "custom") {
-        els.labelPreset.value = "custom";
-      }
-    });
+    if (els.labelPreset.value !== "custom") {
+      els.labelPreset.value = "custom";
+    }
+    renderLabelPreview();
   });
+});
+
+[
+  els.labelShowPlace,
+  els.labelShowCount,
+  els.labelShowContents,
+  els.labelShowUrl
+].filter(Boolean).forEach((control) => {
+  control.addEventListener("change", renderLabelPreview);
+});
 }
 
 els.closeLabelDesigner?.addEventListener("click", closeLabelDesigner);

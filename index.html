@@ -71,6 +71,16 @@
           <button class="mode-tab" data-mode="move" type="button">Move Items</button>
           <button class="mode-tab" data-mode="shared" type="button">Shared Locations</button>
         </nav>
+        <label class="mobile-mode-control">
+          Menu
+          <select id="mobileModeSelect" class="mobile-mode-select">
+            <option value="home">Main Page</option>
+            <option value="add">Add Locations</option>
+            <option value="edit">Edit Locations</option>
+            <option value="move">Move Items</option>
+            <option value="shared">Shared Locations</option>
+          </select>
+        </label>
 
         <div class="toolbar">
           <label class="search">
@@ -146,6 +156,10 @@
           <label><input id="labelShowUrl" type="checkbox"> URL text</label>
         </fieldset>
 
+        <section class="label-live-preview" aria-label="Live label preview">
+          <div id="labelPreview"></div>
+        </section>
+
         <div class="label-designer-actions">
           <button class="ghost-button" id="previewLabelButton" type="button">Preview</button>
           <button class="primary-button" type="submit">Create Printable Label</button>
@@ -209,13 +223,16 @@
       </div>
 
       <div class="detail-grid">
-        <section class="panel qr-panel">
-          <img class="qr-image" alt="">
-          <div>
-            <h3>Label URL</h3>
-            <input class="qr-url" readonly>
+        <details class="panel qr-panel">
+          <summary>QR Code And Link</summary>
+          <div class="qr-panel-body">
+            <img class="qr-image" alt="">
+            <div>
+              <h3>Label URL</h3>
+              <input class="qr-url" readonly>
+            </div>
           </div>
-        </section>
+        </details>
 
         <form class="panel item-form">
           <h3>Add Item</h3>
@@ -231,7 +248,7 @@
           </div>
           <label>
             Category
-            <input class="item-category" autocomplete="off" placeholder="Tools">
+            <select class="item-category" required></select>
           </label>
           <label>
             Notes

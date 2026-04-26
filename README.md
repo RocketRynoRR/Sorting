@@ -6,14 +6,17 @@ A small static MVP for organizing home storage with QR-coded locations.
 
 - Create storage locations like boxes, shelves, drawers, tubs, and rooms.
 - Manage reusable place tags like Home, Work, Car, and Shed in Settings.
+- Manage reusable category tags like Tools, Cables, Documents, and Kitchen in Settings.
 - Share locations, items, and place tags with another app user by email.
 - View shared locations in a separate Shared Locations menu.
+- Save dark mode as a logged-in user preference.
 - Add items with quantity, category, and notes.
 - Edit locations after they are created.
 - Move items between locations with a drag and drop sorting board.
 - Generate a QR label URL for each location.
 - Create a printable container label with the QR code, place, location name, item count, and contents preview.
 - Customize label size, QR size, text size, layout, and included fields before printing.
+- Preview labels live before printing.
 - Search locations and items.
 - Export your saved inventory as JSON.
 
