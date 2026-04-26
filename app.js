@@ -162,14 +162,33 @@ function getLocationDepth(location) {
   return depth;
 }
 
-function getLocationOptions(selectedId = "", excludedId = "") {
-  const options = state.locations
+function sortLocationsByName(locations) {
+  return [...locations].sort((a, b) => {
+    const areaCompare = (a.area || "").localeCompare(b.area || "");
+    if (areaCompare) return areaCompare;
+    return (a.name || "").localeCompare(b.name || "");
+  });
+}
+
+function getLocationTreeOptions(parentId = null, selectedId = "", excludedId = "", depth = 0) {
+  return sortLocationsByName(
+    state.locations.filter((location) => (location.parent_location_id || null) === parentId)
+  )
     .filter((location) => location.id !== excludedId && !isDescendantLocation(location.id, excludedId))
     .map((location) => {
       const selected = location.id === selectedId ? " selected" : "";
-      return `<option value="${escapeHtml(location.id)}"${selected}>${escapeHtml(getLocationPath(location))}</option>`;
+      const prefix = depth ? `${"--".repeat(depth)} ` : "";
+      const label = `${prefix}${location.name}${location.area ? ` (${location.area})` : ""}`;
+      return [
+        `<option value="${escapeHtml(location.id)}"${selected}>${escapeHtml(label)}</option>`,
+        getLocationTreeOptions(location.id, selectedId, excludedId, depth + 1)
+      ].join("");
     })
     .join("");
+}
+
+function getLocationOptions(selectedId = "", excludedId = "") {
+  const options = getLocationTreeOptions(null, selectedId, excludedId);
 
   return `<option value="">Top-level location</option>${options}`;
 }
@@ -525,11 +544,12 @@ function createLabel(location, options = getLabelOptions(), autoPrint = false) {
         <meta name="viewport" content="width=device-width, initial-scale=1">
         <title>${escapeHtml(location.name)} Label</title>
         <style>
+          @page { size: ${options.width}mm ${options.height}mm; margin: 0; }
           * { box-sizing: border-box; }
-          html, body { width: ${options.width}mm; height: ${options.height}mm; margin: 0; overflow: hidden; }
-          body { background: white; color: #11181a; font-family: Arial, Helvetica, sans-serif; }
-          .page { width: ${options.width}mm; height: ${options.height}mm; display: grid; place-items: center; overflow: hidden; }
-          .label { width: 100%; height: 100%; display: grid; gap: 3mm; border: 0.6mm solid #11181a; border-radius: 2mm; background: white; padding: 3mm; overflow: hidden; break-inside: avoid; page-break-inside: avoid; }
+          html, body { margin: 0; min-width: ${options.width}mm; background: white; }
+          body { color: #11181a; font-family: Arial, Helvetica, sans-serif; }
+          .page { width: ${options.width}mm; height: ${options.height}mm; display: grid; place-items: center; overflow: hidden; break-inside: avoid; page-break-inside: avoid; page-break-after: avoid; }
+          .label { width: 100%; height: 100%; max-width: 100%; max-height: 100%; display: grid; gap: 3mm; border: 0.6mm solid #11181a; border-radius: 2mm; background: white; padding: 3mm; overflow: hidden; break-inside: avoid; page-break-inside: avoid; }
           .label.side { grid-template-columns: ${options.qrSize}mm minmax(${bodyWidth}mm, 1fr); align-items: start; }
           .label.stacked { grid-template-columns: 1fr; justify-items: center; text-align: center; }
           .label.qr-only { grid-template-columns: 1fr; place-items: center; width: ${options.width}mm; min-height: ${options.height}mm; }
@@ -549,8 +569,32 @@ function createLabel(location, options = getLabelOptions(), autoPrint = false) {
           .actions { display: flex; gap: 10px; justify-content: center; margin-top: 18px; }
           button { min-height: 42px; border: 1px solid #cfd7d0; border-radius: 6px; background: white; padding: 0 14px; font: inherit; font-weight: 800; cursor: pointer; }
           .print { background: #206f63; color: white; border-color: #206f63; }
-          @page { size: ${options.width}mm ${options.height}mm; margin: 0; }
-          @media print { html, body, .page { width: ${options.width}mm; height: ${options.height}mm; } body { background: white; } .page { padding: 0; break-inside: avoid; page-break-inside: avoid; } .label { border-radius: 0; box-shadow: none; break-inside: avoid; page-break-inside: avoid; } .actions { display: none; } }
+          @media print {
+            html, body {
+              width: ${options.width}mm;
+              height: ${options.height}mm;
+              min-width: 0;
+              overflow: hidden;
+            }
+            body { background: white; }
+            .page {
+              width: ${options.width}mm;
+              height: ${options.height}mm;
+              padding: 0;
+              margin: 0;
+              overflow: hidden;
+              break-inside: avoid;
+              page-break-inside: avoid;
+              page-break-after: avoid;
+            }
+            .label {
+              border-radius: 0;
+              box-shadow: none;
+              break-inside: avoid;
+              page-break-inside: avoid;
+            }
+            .actions { display: none !important; }
+          }
         </style>
       </head>
       <body>
@@ -568,11 +612,11 @@ function createLabel(location, options = getLabelOptions(), autoPrint = false) {
               ${contentsMarkup}
             </div>`}
           </section>
-          <div class="actions">
-            <button class="print" onclick="window.print()">Print Label</button>
-            <button onclick="window.close()">Close</button>
-          </div>
         </main>
+        <div class="actions">
+          <button class="print" onclick="window.print()">Print Label</button>
+          <button onclick="window.close()">Close</button>
+        </div>
       </body>
     </html>
   `);
