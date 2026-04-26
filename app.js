@@ -120,8 +120,71 @@ function getLocationItems(locationId) {
   return state.items.filter((item) => item.location_id === locationId);
 }
 
+function getChildLocations(locationId) {
+  return state.locations.filter((location) => location.parent_location_id === locationId);
+}
+
 function getActiveLocation() {
   return state.locations.find((location) => location.id === activeLocationId) || state.locations[0];
+}
+
+function getLocationById(locationId) {
+  return state.locations.find((location) => location.id === locationId) || null;
+}
+
+function getLocationPath(location) {
+  const names = [location.name];
+  let parent = getLocationById(location.parent_location_id);
+  const seen = new Set([location.id]);
+
+  while (parent && !seen.has(parent.id)) {
+    names.unshift(parent.name);
+    seen.add(parent.id);
+    parent = getLocationById(parent.parent_location_id);
+  }
+
+  return names.join(" > ");
+}
+
+function getLocationDepth(location) {
+  let depth = 0;
+  let parent = getLocationById(location.parent_location_id);
+  const seen = new Set([location.id]);
+
+  while (parent && !seen.has(parent.id)) {
+    depth += 1;
+    seen.add(parent.id);
+    parent = getLocationById(parent.parent_location_id);
+  }
+
+  return depth;
+}
+
+function getLocationOptions(selectedId = "", excludedId = "") {
+  const options = state.locations
+    .filter((location) => location.id !== excludedId && !isDescendantLocation(location.id, excludedId))
+    .map((location) => {
+      const selected = location.id === selectedId ? " selected" : "";
+      return `<option value="${escapeHtml(location.id)}"${selected}>${escapeHtml(getLocationPath(location))}</option>`;
+    })
+    .join("");
+
+  return `<option value="">Top-level location</option>${options}`;
+}
+
+function isDescendantLocation(locationId, possibleAncestorId) {
+  if (!locationId || !possibleAncestorId) return false;
+
+  let current = getLocationById(locationId);
+  const seen = new Set();
+
+  while (current && !seen.has(current.id)) {
+    if (current.parent_location_id === possibleAncestorId) return true;
+    seen.add(current.id);
+    current = getLocationById(current.parent_location_id);
+  }
+
+  return false;
 }
 
 function getLocationUrl(locationId) {
@@ -515,10 +578,15 @@ async function loadCloudData() {
   render();
 }
 
-async function createLocation(name, area) {
+async function createLocation(name, area, parentLocationId = "") {
   const { data, error } = await supabaseClient
     .from("locations")
-    .insert({ name, area, user_id: state.user.id })
+    .insert({
+      name,
+      area,
+      parent_location_id: parentLocationId || null,
+      user_id: state.user.id
+    })
     .select()
     .single();
 
@@ -831,9 +899,12 @@ function renderLocationList(container) {
 
   visibleLocations.forEach((location) => {
     const items = getLocationItems(location.id);
+    const childCount = getChildLocations(location.id).length;
+    const depth = getLocationDepth(location);
     const button = document.createElement("button");
     button.className = `location-button${location.id === activeLocationId ? " active" : ""}`;
     button.type = "button";
+    button.style.setProperty("--location-depth", depth);
     button.innerHTML = `
       <span>
         <span class="location-name"></span>
@@ -843,7 +914,11 @@ function renderLocationList(container) {
       <strong>${items.length}</strong>
     `;
     button.querySelector(".location-name").textContent = location.name;
-    button.querySelector(".location-meta").textContent = location.area || "No area";
+    button.querySelector(".location-meta").textContent = [
+      location.area || "No area",
+      location.parent_location_id ? `Inside ${getLocationPath(getLocationById(location.parent_location_id))}` : "",
+      childCount ? `${childCount} sub-location${childCount === 1 ? "" : "s"}` : ""
+    ].filter(Boolean).join(" - ");
     button.addEventListener("click", () => setActiveLocation(location.id));
     container.append(button);
   });
@@ -868,7 +943,7 @@ function renderLocationDetail(container) {
   const itemCount = content.querySelector(".item-count");
 
   area.textContent = location.area || "Storage location";
-  title.textContent = location.name;
+  title.textContent = getLocationPath(location);
   qrImage.src = getQrUrl(location.id);
   qrImage.alt = `QR code for ${location.name}`;
   qrUrl.value = getLocationUrl(location.id);
@@ -946,6 +1021,10 @@ function renderAddMode() {
       Place
       <select class="new-location-area">${getPlaceOptions()}</select>
     </label>
+    <label>
+      Inside
+      <select class="new-parent-location">${getLocationOptions()}</select>
+    </label>
     <p class="muted-copy">Manage place tags in Settings.</p>
     <button class="primary-button" type="submit">Create Location</button>
   `;
@@ -953,14 +1032,15 @@ function renderAddMode() {
     event.preventDefault();
     const name = locationPanel.querySelector(".new-location-name").value.trim();
     const area = locationPanel.querySelector(".new-location-area").value.trim();
+    const parentLocationId = locationPanel.querySelector(".new-parent-location").value;
     if (!name) return;
     locationPanel.reset();
-    await createLocation(name, area);
+    await createLocation(name, area, parentLocationId);
   });
 
   const itemPanel = createNode("form", "panel item-form");
   const locationOptions = state.locations
-    .map((location) => `<option value="${escapeHtml(location.id)}">${escapeHtml(location.area || "Storage")} - ${escapeHtml(location.name)}</option>`)
+    .map((location) => `<option value="${escapeHtml(location.id)}">${escapeHtml(location.area || "Storage")} - ${escapeHtml(getLocationPath(location))}</option>`)
     .join("");
   itemPanel.innerHTML = `
     <h2>Add Item</h2>
@@ -1020,7 +1100,7 @@ function renderEditMode() {
     form.innerHTML = `
       <div>
         <p class="eyebrow">${escapeHtml(location.area || "Storage")}</p>
-        <h2>${escapeHtml(location.name)}</h2>
+        <h2>${escapeHtml(getLocationPath(location))}</h2>
         ${isOwnRecord(location) ? "" : `<span class="shared-badge">Shared</span>`}
       </div>
       <label>
@@ -1030,6 +1110,10 @@ function renderEditMode() {
       <label>
         Place
         <select class="edit-area">${getPlaceOptions(location.area || "")}</select>
+      </label>
+      <label>
+        Inside
+        <select class="edit-parent">${getLocationOptions(location.parent_location_id || "", location.id)}</select>
       </label>
       <div class="edit-actions">
         <button class="primary-button" type="submit">Save</button>
@@ -1046,7 +1130,8 @@ function renderEditMode() {
       }
       await updateLocation(location.id, {
         name: form.querySelector(".edit-name").value.trim(),
-        area: form.querySelector(".edit-area").value.trim()
+        area: form.querySelector(".edit-area").value.trim(),
+        parent_location_id: form.querySelector(".edit-parent").value || null
       });
     });
     form.querySelector(".primary-button").disabled = !isOwnRecord(location);
@@ -1077,7 +1162,7 @@ function renderMoveMode() {
       <div class="move-location-header">
         <div>
           <p class="eyebrow">${escapeHtml(location.area || "Storage")}</p>
-          <h2 class="move-location-title">${escapeHtml(location.name)}</h2>
+          <h2 class="move-location-title">${escapeHtml(getLocationPath(location))}</h2>
         </div>
         <span class="count-pill">${getLocationItems(location.id).length}</span>
       </div>
@@ -1270,7 +1355,7 @@ function renderSharedMode() {
     card.innerHTML = `
       <div>
         <p class="eyebrow">${escapeHtml(location.area || "Shared")}</p>
-        <h2>${escapeHtml(location.name)}</h2>
+        <h2>${escapeHtml(getLocationPath(location))}</h2>
         <span class="shared-badge">Shared with you</span>
       </div>
       <p class="muted-copy">${items.length} item${items.length === 1 ? "" : "s"}</p>

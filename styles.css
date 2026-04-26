@@ -632,6 +632,7 @@ textarea:focus {
   background: var(--button-soft);
   color: var(--ink);
   padding: 12px;
+  padding-left: calc(12px + (var(--location-depth, 0) * 18px));
   text-align: left;
 }
 
