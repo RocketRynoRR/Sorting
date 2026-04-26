@@ -26,6 +26,8 @@ const labelPresets = {
 };
 
 const els = {
+  appShell: document.querySelector(".app-shell"),
+  dashboard: document.querySelector("#dashboard"),
   authPanel: document.querySelector("#authPanel"),
   authForm: document.querySelector("#authForm"),
   authEmail: document.querySelector("#authEmail"),
@@ -810,7 +812,9 @@ function renderSummary() {
 
 function render() {
   const signedIn = Boolean(state.user);
+  els.appShell.classList.toggle("auth-only", !signedIn);
   els.authPanel.classList.toggle("hidden", signedIn);
+  els.dashboard.classList.toggle("hidden", !signedIn);
   els.signOutButton.classList.toggle("hidden", !signedIn);
   els.exportButton.disabled = !signedIn || !supabaseClient;
 
@@ -824,7 +828,9 @@ function render() {
 
   els.modeTabs.forEach((tab) => tab.classList.toggle("active", tab.dataset.mode === activeMode));
   renderSummary();
-  renderModePanel();
+  if (signedIn) {
+    renderModePanel();
+  }
 }
 
 els.authForm.addEventListener("submit", async (event) => {

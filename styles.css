@@ -47,6 +47,12 @@ button:disabled {
   padding: 24px 0 40px;
 }
 
+.app-shell.auth-only {
+  min-height: 100vh;
+  display: grid;
+  align-content: center;
+}
+
 .topbar,
 .topbar-actions,
 .auth-actions,
@@ -67,6 +73,16 @@ button:disabled {
   justify-content: space-between;
   gap: 16px;
   padding: 10px 0 22px;
+}
+
+.auth-only .topbar {
+  justify-content: center;
+  text-align: center;
+  padding-bottom: 24px;
+}
+
+.auth-only .topbar-actions {
+  display: none;
 }
 
 .topbar-actions {
@@ -150,6 +166,18 @@ button:disabled {
   gap: 18px;
   align-items: start;
   margin-bottom: 16px;
+}
+
+.auth-only .auth-panel {
+  width: min(820px, 100%);
+  margin: 0 auto;
+  padding: 26px;
+}
+
+.auth-panel h2 {
+  margin: 0;
+  font-size: clamp(1.5rem, 2.2vw, 2.3rem);
+  line-height: 1.1;
 }
 
 .label-designer {
@@ -278,25 +306,35 @@ button:disabled {
 
 .mode-tabs {
   align-items: center;
-  gap: 8px;
-  padding: 8px;
-  overflow-x: auto;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+  padding: 10px;
 }
 
 .mode-tab {
-  min-height: 42px;
-  white-space: nowrap;
-  border: 1px solid transparent;
+  min-height: 58px;
+  white-space: normal;
+  border: 1px solid var(--line);
   border-radius: 6px;
-  background: transparent;
-  color: var(--muted);
-  padding: 0 14px;
+  background: #fbfcf9;
+  color: var(--ink);
+  padding: 10px 14px;
   font-weight: 850;
+  box-shadow: 0 8px 18px rgba(31, 42, 46, 0.05);
+  text-align: center;
 }
 
 .mode-tab.active {
-  background: var(--accent-soft);
+  background: var(--accent);
+  border-color: var(--accent);
+  color: white;
+  box-shadow: 0 12px 24px rgba(32, 111, 99, 0.18);
+}
+
+.mode-tab:hover:not(.active) {
   border-color: #b8ded4;
+  background: var(--accent-soft);
   color: var(--accent-strong);
 }
 
@@ -661,6 +699,10 @@ textarea:focus {
   .label-checks {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
+
+  .mode-tabs {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 }
 
 @media (max-width: 620px) {
@@ -671,6 +713,7 @@ textarea:focus {
 
   .auth-panel,
   .summary-grid,
+  .mode-tabs,
   .label-control-grid,
   .label-checks,
   .item-form-grid {
