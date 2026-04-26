@@ -537,13 +537,16 @@ button:disabled {
 .search-bubble {
   position: relative;
   flex: 1 1 420px;
-  max-width: 560px;
+  max-width: 640px;
   margin: 0;
   border: 1px solid var(--line);
   border-radius: 8px;
   background: var(--surface);
   box-shadow: var(--shadow);
-  padding: 10px;
+  padding: 12px;
+  display: grid;
+  grid-template-columns: minmax(260px, 1fr) auto;
+  align-items: end;
 }
 
 .search-bubble .search {
@@ -557,10 +560,12 @@ button:disabled {
 
 .search-bubble input {
   border-radius: 6px;
+  min-width: 0;
 }
 
 .search-bubble .ghost-button {
   border-radius: 6px;
+  min-width: 78px;
 }
 
 .search-results {
@@ -1009,6 +1014,12 @@ textarea:focus {
   .topbar {
     align-items: stretch;
     flex-direction: column;
+  }
+
+  .search-bubble {
+    max-width: none;
+    width: 100%;
+    grid-template-columns: 1fr;
   }
 
   .detail-actions,
