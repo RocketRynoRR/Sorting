@@ -3,7 +3,7 @@
 
 <head>
   <title>QR Storage Manager</title>
-  <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/qrcode/build/qrcode.min.js"></script>
 </head>
 
 <body>
@@ -129,28 +129,26 @@ filteredBoxes.forEach((box) => {
     </button>
 
     <div id="qr-${box.id}" style="margin-top:10px;"></div>
-
   </div>
 `;
       });
     }
-    function generateQRCode(boxId) {
-
+function generateQRCode(boxId) {
   const qrContainer = document.getElementById("qr-" + boxId);
 
   qrContainer.innerHTML = "";
 
   QRCode.toCanvas(boxId, function (error, canvas) {
-
     if (error) {
+      alert("QR code could not be created.");
       console.error(error);
       return;
     }
 
     qrContainer.appendChild(canvas);
-
   });
 }
+    
 displayMainLocations();
 displayBoxes();
   </script>
