@@ -55,6 +55,7 @@ button:disabled {
 
 .topbar,
 .topbar-actions,
+.account-dropdown,
 .auth-actions,
 .toolbar,
 .mode-tabs,
@@ -180,7 +181,8 @@ button:disabled {
   line-height: 1.1;
 }
 
-.label-designer {
+.label-designer,
+.share-dialog {
   position: fixed;
   inset: 0;
   z-index: 20;
@@ -190,11 +192,13 @@ button:disabled {
   padding: 18px;
 }
 
-.label-designer.hidden {
+.label-designer.hidden,
+.share-dialog.hidden {
   display: none;
 }
 
-.label-designer-card {
+.label-designer-card,
+.share-dialog-card {
   width: min(760px, 100%);
   max-height: min(92vh, 820px);
   overflow: auto;
@@ -207,16 +211,100 @@ button:disabled {
   padding: 20px;
 }
 
+.share-dialog-card {
+  width: min(460px, 100%);
+}
+
 .label-designer-header,
-.label-designer-actions {
+.label-designer-actions,
+.share-dialog-header,
+.share-actions {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 12px;
 }
 
-.label-designer-header h2 {
+.label-designer-header h2,
+.share-dialog-header h2 {
   margin: 0;
+}
+
+.share-actions {
+  justify-content: flex-end;
+}
+
+.account-menu {
+  position: relative;
+}
+
+.account-button,
+.action-dot {
+  width: 42px;
+  height: 42px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--ink);
+  font-weight: 900;
+}
+
+.account-button {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: white;
+}
+
+.account-dropdown {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 8px);
+  z-index: 12;
+  min-width: 170px;
+  display: grid;
+  gap: 6px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+  box-shadow: var(--shadow);
+  padding: 8px;
+}
+
+.account-dropdown.hidden {
+  display: none;
+}
+
+.account-dropdown button {
+  min-height: 38px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--ink);
+  font-weight: 800;
+  text-align: left;
+  padding: 0 10px;
+}
+
+.account-dropdown button:hover {
+  background: var(--accent-soft);
+  color: var(--accent-strong);
+}
+
+.action-dot {
+  flex: 0 0 auto;
+  border-radius: 6px;
+  background: #fbfcf9;
+}
+
+.shared-badge {
+  display: inline-block;
+  margin-top: 6px;
+  border-radius: 999px;
+  background: #eef0ff;
+  color: #3d4b91;
+  font-size: 0.75rem;
+  font-weight: 850;
+  padding: 4px 8px;
 }
 
 .label-control-grid {
@@ -721,7 +809,9 @@ textarea:focus {
   }
 
   .label-designer-header,
-  .label-designer-actions {
+  .label-designer-actions,
+  .share-dialog-header,
+  .share-actions {
     align-items: stretch;
     flex-direction: column;
   }

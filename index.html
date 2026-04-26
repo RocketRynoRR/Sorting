@@ -16,7 +16,13 @@
         <div class="topbar-actions">
           <span class="sync-status" id="syncStatus">Offline</span>
           <button class="ghost-button" id="exportButton" type="button">Export</button>
-          <button class="ghost-button hidden" id="signOutButton" type="button">Sign Out</button>
+          <div class="account-menu hidden" id="accountMenu">
+            <button class="account-button" id="accountButton" type="button" aria-label="Account menu">A</button>
+            <div class="account-dropdown hidden" id="accountDropdown">
+              <button type="button" data-account-action="settings">Settings</button>
+              <button type="button" id="signOutButton">Sign Out</button>
+            </div>
+          </div>
         </div>
       </header>
 
@@ -63,7 +69,7 @@
           <button class="mode-tab" data-mode="add" type="button">Add Locations</button>
           <button class="mode-tab" data-mode="edit" type="button">Edit Locations</button>
           <button class="mode-tab" data-mode="move" type="button">Move Items</button>
-          <button class="mode-tab" data-mode="settings" type="button">Settings</button>
+          <button class="mode-tab" data-mode="shared" type="button">Shared Locations</button>
         </nav>
 
         <div class="toolbar">
@@ -147,6 +153,26 @@
       </form>
     </div>
 
+    <div class="share-dialog hidden" id="shareDialog" role="dialog" aria-modal="true" aria-labelledby="shareDialogTitle">
+      <form class="share-dialog-card" id="shareForm">
+        <div class="share-dialog-header">
+          <div>
+            <p class="eyebrow">Share</p>
+            <h2 id="shareDialogTitle">Share Item</h2>
+          </div>
+          <button class="ghost-button" id="closeShareDialog" type="button">Close</button>
+        </div>
+        <label>
+          User email
+          <input id="shareEmail" type="email" autocomplete="email" placeholder="friend@example.com" required>
+        </label>
+        <p class="muted-copy" id="shareHelp">They need to sign into this app with the same email.</p>
+        <div class="share-actions">
+          <button class="primary-button" type="submit">Share</button>
+        </div>
+      </form>
+    </div>
+
     <template id="emptyStateTemplate">
       <div class="empty-state">
         <div class="empty-mark">QR</div>
@@ -176,6 +202,7 @@
           <h2 class="location-title"></h2>
         </div>
         <div class="detail-actions">
+          <button class="action-dot share-location-button" type="button" aria-label="Share location">...</button>
           <button class="ghost-button label-button" type="button">Create Label</button>
           <button class="danger-button delete-location-button" type="button">Delete</button>
         </div>

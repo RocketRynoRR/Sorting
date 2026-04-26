@@ -19,6 +19,7 @@ let activeLocationId = "";
 let searchTerm = "";
 let draggedItemId = "";
 let labelLocationId = "";
+let shareTarget = null;
 
 const labelPresets = {
   small: { width: 70, height: 38, qrSize: 24, titleSize: 14, textSize: 8, itemLimit: 3, layout: "side" },
@@ -29,6 +30,9 @@ const labelPresets = {
 const els = {
   appShell: document.querySelector(".app-shell"),
   dashboard: document.querySelector("#dashboard"),
+  accountMenu: document.querySelector("#accountMenu"),
+  accountButton: document.querySelector("#accountButton"),
+  accountDropdown: document.querySelector("#accountDropdown"),
   authPanel: document.querySelector("#authPanel"),
   authForm: document.querySelector("#authForm"),
   authEmail: document.querySelector("#authEmail"),
@@ -61,6 +65,12 @@ const els = {
   labelShowCount: document.querySelector("#labelShowCount"),
   labelShowContents: document.querySelector("#labelShowContents"),
   labelShowUrl: document.querySelector("#labelShowUrl"),
+  shareDialog: document.querySelector("#shareDialog"),
+  shareForm: document.querySelector("#shareForm"),
+  shareDialogTitle: document.querySelector("#shareDialogTitle"),
+  closeShareDialog: document.querySelector("#closeShareDialog"),
+  shareEmail: document.querySelector("#shareEmail"),
+  shareHelp: document.querySelector("#shareHelp"),
   emptyStateTemplate: document.querySelector("#emptyStateTemplate"),
   homeTemplate: document.querySelector("#homeTemplate"),
   locationDetailTemplate: document.querySelector("#locationDetailTemplate")
@@ -160,6 +170,15 @@ function getVisibleLocations() {
   });
 }
 
+function isOwnRecord(record) {
+  return Boolean(record && state.user && record.user_id === state.user.id);
+}
+
+function getAccountInitial() {
+  const email = state.user?.email || "";
+  return email ? email.charAt(0).toUpperCase() : "A";
+}
+
 function getPlaceNames() {
   const saved = state.places.map((place) => place.name).filter(Boolean);
   const used = state.locations.map((location) => location.area).filter(Boolean);
@@ -245,6 +264,25 @@ function openLabelDesigner(location) {
 function closeLabelDesigner() {
   labelLocationId = "";
   els.labelDesigner.classList.add("hidden");
+}
+
+function openShareDialog(type, record, title) {
+  if (!isOwnRecord(record)) {
+    setMessage("You can only share records you own.");
+    return;
+  }
+
+  shareTarget = { type, record };
+  els.shareDialogTitle.textContent = `Share ${title}`;
+  els.shareHelp.textContent = "They need to sign into this app with the same email.";
+  els.shareEmail.value = "";
+  els.shareDialog.classList.remove("hidden");
+  els.shareEmail.focus();
+}
+
+function closeShareDialog() {
+  shareTarget = null;
+  els.shareDialog.classList.add("hidden");
 }
 
 function createLabel(location, options = getLabelOptions(), autoPrint = false) {
@@ -485,6 +523,36 @@ async function deletePlace(place) {
   render();
 }
 
+async function shareRecord(type, record, recipientEmail) {
+  const cleanEmail = recipientEmail.trim().toLowerCase();
+  if (!cleanEmail || !record || !state.user) return;
+
+  const config = {
+    location: { table: "location_shares", idColumn: "location_id" },
+    item: { table: "item_shares", idColumn: "item_id" },
+    place: { table: "place_shares", idColumn: "place_id" }
+  }[type];
+
+  if (!config) return;
+
+  const { error } = await supabaseClient
+    .from(config.table)
+    .insert({
+      owner_id: state.user.id,
+      [config.idColumn]: record.id,
+      recipient_email: cleanEmail
+    });
+
+  if (error) {
+    showError(error);
+    return;
+  }
+
+  setMessage(`Shared with ${cleanEmail}.`);
+  setSyncStatus("Shared", true);
+  closeShareDialog();
+}
+
 async function createItem(location, form) {
   const item = {
     location_id: location.id,
@@ -593,6 +661,7 @@ function renderLocationList(container) {
       <span>
         <span class="location-name"></span>
         <span class="location-meta"></span>
+        ${isOwnRecord(location) ? "" : `<span class="shared-badge">Shared</span>`}
       </span>
       <strong>${items.length}</strong>
     `;
@@ -628,6 +697,7 @@ function renderLocationDetail(container) {
 
   const visibleItems = getLocationItems(location.id).filter((item) => matchesSearch(location, item));
   itemCount.textContent = visibleItems.length;
+  content.querySelector(".delete-location-button").disabled = !isOwnRecord(location);
 
   visibleItems.forEach((item) => {
     const row = document.createElement("article");
@@ -637,7 +707,10 @@ function renderLocationDetail(container) {
         <p class="item-name-text"></p>
         <p class="item-meta"></p>
       </div>
-      <button class="danger-button" type="button">Remove</button>
+      <div class="edit-actions">
+        <button class="action-dot" type="button" aria-label="Share item">...</button>
+        <button class="danger-button" type="button">Remove</button>
+      </div>
     `;
     row.querySelector(".item-name-text").textContent = item.name;
     row.querySelector(".item-meta").textContent = [
@@ -645,7 +718,9 @@ function renderLocationDetail(container) {
       item.category,
       item.notes
     ].filter(Boolean).join(" - ");
-    row.querySelector("button").addEventListener("click", () => deleteItem(item.id));
+    row.querySelector(".action-dot").addEventListener("click", () => openShareDialog("item", item, item.name));
+    row.querySelector(".danger-button").disabled = !isOwnRecord(item);
+    row.querySelector(".danger-button").addEventListener("click", () => deleteItem(item.id));
     itemsList.append(row);
   });
 
@@ -656,9 +731,15 @@ function renderLocationDetail(container) {
 
   itemForm.addEventListener("submit", async (event) => {
     event.preventDefault();
+    if (!isOwnRecord(location)) {
+      setMessage("Shared locations are view-only.");
+      return;
+    }
     await createItem(location, itemForm);
   });
 
+  itemForm.querySelector("button").disabled = !isOwnRecord(location);
+  content.querySelector(".share-location-button").addEventListener("click", () => openShareDialog("location", location, location.name));
   content.querySelector(".label-button").addEventListener("click", () => openLabelDesigner(location));
   content.querySelector(".delete-location-button").addEventListener("click", () => deleteLocation(location));
 
@@ -755,6 +836,7 @@ function renderEditMode() {
       <div>
         <p class="eyebrow">${escapeHtml(location.area || "Storage")}</p>
         <h2>${escapeHtml(location.name)}</h2>
+        ${isOwnRecord(location) ? "" : `<span class="shared-badge">Shared</span>`}
       </div>
       <label>
         Name
@@ -766,18 +848,26 @@ function renderEditMode() {
       </label>
       <div class="edit-actions">
         <button class="primary-button" type="submit">Save</button>
+        <button class="action-dot share-button" type="button" aria-label="Share location">...</button>
         <button class="ghost-button label-button" type="button">Label</button>
         <button class="danger-button delete-button" type="button">Delete</button>
       </div>
     `;
     form.addEventListener("submit", async (event) => {
       event.preventDefault();
+      if (!isOwnRecord(location)) {
+        setMessage("Shared locations are view-only.");
+        return;
+      }
       await updateLocation(location.id, {
         name: form.querySelector(".edit-name").value.trim(),
         area: form.querySelector(".edit-area").value.trim()
       });
     });
+    form.querySelector(".primary-button").disabled = !isOwnRecord(location);
+    form.querySelector(".share-button").addEventListener("click", () => openShareDialog("location", location, location.name));
     form.querySelector(".label-button").addEventListener("click", () => openLabelDesigner(location));
+    form.querySelector(".delete-button").disabled = !isOwnRecord(location);
     form.querySelector(".delete-button").addEventListener("click", () => deleteLocation(location));
     wrapper.append(form);
   });
@@ -901,11 +991,17 @@ function renderSettingsMode() {
         <p class="item-name-text"></p>
         <p class="item-meta"></p>
       </div>
-      <button class="danger-button" type="button">Remove</button>
+      <div class="edit-actions">
+        <button class="action-dot" type="button" aria-label="Share place">...</button>
+        <button class="danger-button" type="button">Remove</button>
+      </div>
     `;
     row.querySelector(".item-name-text").textContent = place.name;
     row.querySelector(".item-meta").textContent = `${usedCount} location${usedCount === 1 ? "" : "s"}`;
-    row.querySelector("button").addEventListener("click", () => deletePlace(place));
+    row.querySelector(".action-dot").addEventListener("click", () => openShareDialog("place", place, place.name));
+    row.querySelector(".action-dot").disabled = !isOwnRecord(place);
+    row.querySelector(".danger-button").disabled = !isOwnRecord(place);
+    row.querySelector(".danger-button").addEventListener("click", () => deletePlace(place));
     list.append(row);
   });
 
@@ -914,6 +1010,42 @@ function renderSettingsMode() {
   }
 
   wrapper.append(addPanel, listPanel);
+  els.modePanel.replaceChildren(wrapper);
+}
+
+function renderSharedMode() {
+  const wrapper = createNode("section", "edit-grid");
+  const sharedLocations = getVisibleLocations().filter((location) => !isOwnRecord(location));
+
+  sharedLocations.forEach((location) => {
+    const card = createNode("article", "panel edit-card");
+    const items = getLocationItems(location.id);
+    card.innerHTML = `
+      <div>
+        <p class="eyebrow">${escapeHtml(location.area || "Shared")}</p>
+        <h2>${escapeHtml(location.name)}</h2>
+        <span class="shared-badge">Shared with you</span>
+      </div>
+      <p class="muted-copy">${items.length} item${items.length === 1 ? "" : "s"}</p>
+      <div class="edit-actions">
+        <button class="ghost-button open-shared-button" type="button">Open</button>
+        <button class="ghost-button label-button" type="button">Label</button>
+      </div>
+    `;
+    card.querySelector(".open-shared-button").addEventListener("click", () => {
+      activeMode = "home";
+      setActiveLocation(location.id);
+    });
+    card.querySelector(".label-button").addEventListener("click", () => openLabelDesigner(location));
+    wrapper.append(card);
+  });
+
+  if (!sharedLocations.length) {
+    const empty = createNode("div", "empty-state");
+    empty.innerHTML = `<div class="empty-mark">QR</div><h2>No shared locations yet</h2><p>Shared locations appear here after another user shares with your email.</p>`;
+    wrapper.append(empty);
+  }
+
   els.modePanel.replaceChildren(wrapper);
 }
 
@@ -938,6 +1070,11 @@ function renderModePanel() {
     return;
   }
 
+  if (activeMode === "shared") {
+    renderSharedMode();
+    return;
+  }
+
   if (activeMode === "settings") {
     renderSettingsMode();
     return;
@@ -958,7 +1095,8 @@ function render() {
   els.appShell.classList.toggle("auth-only", !signedIn);
   els.authPanel.classList.toggle("hidden", signedIn);
   els.dashboard.classList.toggle("hidden", !signedIn);
-  els.signOutButton.classList.toggle("hidden", !signedIn);
+  els.accountMenu.classList.toggle("hidden", !signedIn);
+  els.accountButton.textContent = getAccountInitial();
   els.exportButton.disabled = !signedIn || !supabaseClient;
 
   els.modeTabs.forEach((tab) => {
@@ -1029,7 +1167,23 @@ els.signUpButton.addEventListener("click", async () => {
 
 els.signOutButton.addEventListener("click", async () => {
   if (!supabaseClient) return;
+  els.accountDropdown.classList.add("hidden");
   await supabaseClient.auth.signOut();
+});
+
+els.accountButton.addEventListener("click", () => {
+  els.accountDropdown.classList.toggle("hidden");
+});
+
+els.accountDropdown.querySelector('[data-account-action="settings"]').addEventListener("click", () => {
+  els.accountDropdown.classList.add("hidden");
+  setMode("settings");
+});
+
+document.addEventListener("click", (event) => {
+  if (!els.accountMenu.contains(event.target)) {
+    els.accountDropdown.classList.add("hidden");
+  }
 });
 
 els.modeTabs.forEach((tab) => {
@@ -1079,6 +1233,20 @@ els.labelDesignerForm?.addEventListener("submit", (event) => {
   if (location) {
     createLabel(location, getLabelOptions(), true);
   }
+});
+
+els.closeShareDialog.addEventListener("click", closeShareDialog);
+
+els.shareDialog.addEventListener("click", (event) => {
+  if (event.target === els.shareDialog) {
+    closeShareDialog();
+  }
+});
+
+els.shareForm.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  if (!shareTarget) return;
+  await shareRecord(shareTarget.type, shareTarget.record, els.shareEmail.value);
 });
 
 els.searchInput.addEventListener("input", (event) => {
