@@ -35,49 +35,115 @@
             <input id="authPassword" type="password" autocomplete="current-password" placeholder="At least 6 characters" required>
           </label>
           <div class="auth-actions">
-            <button class="primary-button" id="signInButton" type="submit">Sign In</button>
+            <button class="primary-button" type="submit">Sign In</button>
             <button class="ghost-button" id="signUpButton" type="button">Create Account</button>
           </div>
           <p class="auth-message" id="authMessage"></p>
         </form>
       </section>
 
-      <main class="layout">
-        <aside class="sidebar" aria-label="Storage locations">
-          <form class="panel compact-form" id="locationForm">
-            <h2>Add Location</h2>
-            <label>
-              Name
-              <input id="locationName" name="locationName" autocomplete="off" placeholder="Blue tub 03" required>
-            </label>
-            <label>
-              Area
-              <input id="locationArea" name="locationArea" autocomplete="off" placeholder="Garage">
-            </label>
-            <button class="primary-button" type="submit">Create Location</button>
-          </form>
-
-          <section class="panel">
-            <div class="section-heading">
-              <h2>Locations</h2>
-              <span id="locationCount">0</span>
-            </div>
-            <div class="location-list" id="locationList"></div>
-          </section>
-        </aside>
-
-        <section class="workspace">
-          <div class="toolbar">
-            <label class="search">
-              <span>Search</span>
-              <input id="searchInput" autocomplete="off" placeholder="Item, box, room, note">
-            </label>
-            <button class="ghost-button" id="clearSearchButton" type="button">Clear</button>
-          </div>
-
-          <section class="location-detail" id="locationDetail"></section>
+      <main class="dashboard">
+        <section class="summary-grid" aria-label="Storage summary">
+          <article class="summary-card">
+            <span>Locations</span>
+            <strong id="summaryLocations">0</strong>
+          </article>
+          <article class="summary-card">
+            <span>Items</span>
+            <strong id="summaryItems">0</strong>
+          </article>
+          <article class="summary-card">
+            <span>Places</span>
+            <strong id="summaryPlaces">0</strong>
+          </article>
         </section>
+
+        <nav class="mode-tabs" aria-label="Storage tools">
+          <button class="mode-tab active" data-mode="home" type="button">Main Page</button>
+          <button class="mode-tab" data-mode="add" type="button">Add Locations</button>
+          <button class="mode-tab" data-mode="edit" type="button">Edit Locations</button>
+          <button class="mode-tab" data-mode="move" type="button">Move Items</button>
+        </nav>
+
+        <div class="toolbar">
+          <label class="search">
+            <span>Search</span>
+            <input id="searchInput" autocomplete="off" placeholder="Item, box, room, note">
+          </label>
+          <button class="ghost-button" id="clearSearchButton" type="button">Clear</button>
+        </div>
+
+        <section class="mode-panel" id="modePanel"></section>
       </main>
+    </div>
+
+    <div class="label-designer hidden" id="labelDesigner" role="dialog" aria-modal="true" aria-labelledby="labelDesignerTitle">
+      <form class="label-designer-card" id="labelDesignerForm">
+        <div class="label-designer-header">
+          <div>
+            <p class="eyebrow">Print label</p>
+            <h2 id="labelDesignerTitle">Customize Label</h2>
+          </div>
+          <button class="ghost-button" id="closeLabelDesigner" type="button">Close</button>
+        </div>
+
+        <div class="label-control-grid">
+          <label>
+            Size preset
+            <select id="labelPreset">
+              <option value="small">Small drawer</option>
+              <option value="medium" selected>Box label</option>
+              <option value="large">Large tub</option>
+              <option value="custom">Custom</option>
+            </select>
+          </label>
+          <label>
+            Width mm
+            <input id="labelWidth" type="number" min="35" max="300" value="100">
+          </label>
+          <label>
+            Height mm
+            <input id="labelHeight" type="number" min="25" max="210" value="70">
+          </label>
+          <label>
+            QR size mm
+            <input id="labelQrSize" type="number" min="18" max="160" value="38">
+          </label>
+          <label>
+            Title size pt
+            <input id="labelTitleSize" type="number" min="10" max="72" value="24">
+          </label>
+          <label>
+            Text size pt
+            <input id="labelTextSize" type="number" min="7" max="28" value="11">
+          </label>
+          <label>
+            Contents shown
+            <input id="labelItemLimit" type="number" min="0" max="30" value="8">
+          </label>
+          <label>
+            Layout
+            <select id="labelLayout">
+              <option value="side" selected>QR left</option>
+              <option value="stacked">QR top</option>
+              <option value="qr-only">QR only</option>
+            </select>
+          </label>
+        </div>
+
+        <fieldset class="label-checks">
+          <legend>Include</legend>
+          <label><input id="labelShowPlace" type="checkbox" checked> Place</label>
+          <label><input id="labelShowCount" type="checkbox" checked> Item count</label>
+          <label><input id="labelShowContents" type="checkbox" checked> Contents preview</label>
+          <label><input id="labelShowUrl" type="checkbox"> URL text</label>
+        </fieldset>
+
+        <div class="label-designer-actions">
+          <button class="ghost-button" id="previewLabelButton" type="button">Preview</button>
+          <button class="primary-button" type="submit">Create Printable Label</button>
+        </div>
+      </form>
     </div>
 
     <template id="emptyStateTemplate">
@@ -86,6 +152,20 @@
         <h2>Create your first storage location</h2>
         <p>Start with one box, shelf, drawer, or tub.</p>
       </div>
+    </template>
+
+    <template id="homeTemplate">
+      <section class="home-grid">
+        <div class="panel location-browser">
+          <div class="section-heading">
+            <h2>Locations</h2>
+            <span class="count-pill" id="locationCount">0</span>
+          </div>
+          <div class="location-list" id="locationList"></div>
+        </div>
+
+        <div class="location-detail" id="locationDetail"></div>
+      </section>
     </template>
 
     <template id="locationDetailTemplate">
@@ -136,7 +216,7 @@
       <section class="panel">
         <div class="section-heading">
           <h3>Items</h3>
-          <span class="item-count">0</span>
+          <span class="count-pill item-count">0</span>
         </div>
         <div class="items-list"></div>
       </section>

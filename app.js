@@ -11,8 +11,17 @@ const state = {
   loading: true
 };
 
+let activeMode = "home";
 let activeLocationId = "";
 let searchTerm = "";
+let draggedItemId = "";
+let labelLocationId = "";
+
+const labelPresets = {
+  small: { width: 70, height: 38, qrSize: 24, titleSize: 14, textSize: 8, itemLimit: 3, layout: "side" },
+  medium: { width: 100, height: 70, qrSize: 38, titleSize: 24, textSize: 11, itemLimit: 8, layout: "side" },
+  large: { width: 160, height: 100, qrSize: 58, titleSize: 34, textSize: 14, itemLimit: 12, layout: "side" }
+};
 
 const els = {
   authPanel: document.querySelector("#authPanel"),
@@ -23,16 +32,32 @@ const els = {
   signUpButton: document.querySelector("#signUpButton"),
   signOutButton: document.querySelector("#signOutButton"),
   syncStatus: document.querySelector("#syncStatus"),
-  locationForm: document.querySelector("#locationForm"),
-  locationName: document.querySelector("#locationName"),
-  locationArea: document.querySelector("#locationArea"),
-  locationList: document.querySelector("#locationList"),
-  locationCount: document.querySelector("#locationCount"),
-  locationDetail: document.querySelector("#locationDetail"),
+  exportButton: document.querySelector("#exportButton"),
   searchInput: document.querySelector("#searchInput"),
   clearSearchButton: document.querySelector("#clearSearchButton"),
-  exportButton: document.querySelector("#exportButton"),
+  modePanel: document.querySelector("#modePanel"),
+  modeTabs: document.querySelectorAll(".mode-tab"),
+  summaryLocations: document.querySelector("#summaryLocations"),
+  summaryItems: document.querySelector("#summaryItems"),
+  summaryPlaces: document.querySelector("#summaryPlaces"),
+  labelDesigner: document.querySelector("#labelDesigner"),
+  labelDesignerForm: document.querySelector("#labelDesignerForm"),
+  closeLabelDesigner: document.querySelector("#closeLabelDesigner"),
+  previewLabelButton: document.querySelector("#previewLabelButton"),
+  labelPreset: document.querySelector("#labelPreset"),
+  labelWidth: document.querySelector("#labelWidth"),
+  labelHeight: document.querySelector("#labelHeight"),
+  labelQrSize: document.querySelector("#labelQrSize"),
+  labelTitleSize: document.querySelector("#labelTitleSize"),
+  labelTextSize: document.querySelector("#labelTextSize"),
+  labelItemLimit: document.querySelector("#labelItemLimit"),
+  labelLayout: document.querySelector("#labelLayout"),
+  labelShowPlace: document.querySelector("#labelShowPlace"),
+  labelShowCount: document.querySelector("#labelShowCount"),
+  labelShowContents: document.querySelector("#labelShowContents"),
+  labelShowUrl: document.querySelector("#labelShowUrl"),
   emptyStateTemplate: document.querySelector("#emptyStateTemplate"),
+  homeTemplate: document.querySelector("#homeTemplate"),
   locationDetailTemplate: document.querySelector("#locationDetailTemplate")
 };
 
@@ -99,7 +124,7 @@ function escapeHtml(value) {
     .replace(/'/g, "&#039;");
 }
 
-function matchesSearch(location, item) {
+function matchesSearch(location, item = null) {
   if (!searchTerm) return true;
 
   const haystack = [
@@ -117,6 +142,15 @@ function matchesSearch(location, item) {
   return haystack.includes(searchTerm.toLowerCase());
 }
 
+function getVisibleLocations() {
+  if (!searchTerm) return state.locations;
+
+  return state.locations.filter((location) => {
+    const items = getLocationItems(location.id);
+    return matchesSearch(location) || items.some((item) => matchesSearch(location, item));
+  });
+}
+
 function setActiveLocation(locationId, updateHash = true) {
   activeLocationId = locationId;
   if (updateHash && locationId) {
@@ -125,11 +159,68 @@ function setActiveLocation(locationId, updateHash = true) {
   render();
 }
 
-function createLabel(location) {
+function setMode(mode) {
+  activeMode = mode;
+  render();
+}
+
+function createNode(tagName, className = "", text = "") {
+  const node = document.createElement(tagName);
+  if (className) node.className = className;
+  if (text) node.textContent = text;
+  return node;
+}
+
+function getNumberInput(input, fallback) {
+  const value = Number(input.value);
+  return Number.isFinite(value) ? value : fallback;
+}
+
+function getLabelOptions() {
+  return {
+    width: getNumberInput(els.labelWidth, 100),
+    height: getNumberInput(els.labelHeight, 70),
+    qrSize: getNumberInput(els.labelQrSize, 38),
+    titleSize: getNumberInput(els.labelTitleSize, 24),
+    textSize: getNumberInput(els.labelTextSize, 11),
+    itemLimit: getNumberInput(els.labelItemLimit, 8),
+    layout: els.labelLayout.value,
+    showPlace: els.labelShowPlace.checked,
+    showCount: els.labelShowCount.checked,
+    showContents: els.labelShowContents.checked,
+    showUrl: els.labelShowUrl.checked
+  };
+}
+
+function applyLabelPreset(presetName) {
+  const preset = labelPresets[presetName];
+  if (!preset) return;
+
+  els.labelWidth.value = preset.width;
+  els.labelHeight.value = preset.height;
+  els.labelQrSize.value = preset.qrSize;
+  els.labelTitleSize.value = preset.titleSize;
+  els.labelTextSize.value = preset.textSize;
+  els.labelItemLimit.value = preset.itemLimit;
+  els.labelLayout.value = preset.layout;
+}
+
+function openLabelDesigner(location) {
+  labelLocationId = location.id;
+  document.querySelector("#labelDesignerTitle").textContent = `${location.name} Label`;
+  els.labelDesigner.classList.remove("hidden");
+}
+
+function closeLabelDesigner() {
+  labelLocationId = "";
+  els.labelDesigner.classList.add("hidden");
+}
+
+function createLabel(location, options = getLabelOptions(), autoPrint = false) {
   const items = getLocationItems(location.id);
-  const previewItems = items.slice(0, 8);
+  const previewItems = options.showContents ? items.slice(0, Math.max(options.itemLimit, 0)) : [];
   const overflowCount = Math.max(items.length - previewItems.length, 0);
-  const labelWindow = window.open("", "storageLabel", "width=760,height=520");
+  const labelWindow = window.open("", "storageLabel", "width=900,height=700");
 
   if (!labelWindow) {
     window.alert("Please allow popups so the printable label can open.");
@@ -138,7 +229,16 @@ function createLabel(location) {
 
   const itemRows = previewItems.length
     ? previewItems.map((item) => `<li>${escapeHtml(item.name)} <span>Qty ${escapeHtml(item.quantity)}</span></li>`).join("")
-    : "<li>No items added yet</li>";
+    : "";
+  const isQrOnly = options.layout === "qr-only";
+  const layoutClass = isQrOnly ? "qr-only" : options.layout;
+  const bodyWidth = Math.max(options.width - options.qrSize - 16, 25);
+  const placeMarkup = options.showPlace && !isQrOnly ? `<p class="place">${escapeHtml(location.area || "Storage")}</p>` : "";
+  const countMarkup = options.showCount && !isQrOnly ? `<p class="count">${items.length} item${items.length === 1 ? "" : "s"}</p>` : "";
+  const contentsMarkup = options.showContents && !isQrOnly
+    ? `<section class="contents"><h2>Contents</h2>${itemRows ? `<ul>${itemRows}</ul>` : "<p>No items added yet</p>"}${overflowCount > 0 ? `<p class="more">+ ${overflowCount} more item${overflowCount === 1 ? "" : "s"}</p>` : ""}</section>`
+    : "";
+  const urlMarkup = options.showUrl ? `<div class="url">${escapeHtml(getLocationUrl(location.id))}</div>` : "";
 
   labelWindow.document.write(`
     <!doctype html>
@@ -150,41 +250,43 @@ function createLabel(location) {
         <style>
           * { box-sizing: border-box; }
           body { margin: 0; background: #f2f4ef; color: #11181a; font-family: Arial, Helvetica, sans-serif; }
-          .page { min-height: 100vh; display: grid; place-items: center; padding: 24px; }
-          .label { width: min(700px, 100%); min-height: 320px; display: grid; grid-template-columns: 220px 1fr; gap: 22px; border: 2px solid #11181a; border-radius: 8px; background: white; padding: 22px; }
-          .qr { display: grid; gap: 10px; align-content: start; }
-          .qr img { width: 200px; height: 200px; border: 1px solid #d8ddd7; }
-          .url { overflow-wrap: anywhere; font-size: 11px; color: #485254; }
-          .place { margin: 0 0 4px; color: #206f63; font-size: 14px; font-weight: 800; text-transform: uppercase; }
-          h1 { margin: 0; font-size: 34px; line-height: 1.05; }
-          .count { margin: 12px 0 16px; font-size: 18px; font-weight: 800; }
-          h2 { margin: 0 0 8px; font-size: 15px; text-transform: uppercase; }
+          .page { min-height: 100vh; display: grid; place-items: center; padding: 18px; }
+          .label { width: ${options.width}mm; min-height: ${options.height}mm; display: grid; gap: 4mm; border: 0.6mm solid #11181a; border-radius: 2mm; background: white; padding: 4mm; overflow: hidden; }
+          .label.side { grid-template-columns: ${options.qrSize}mm minmax(${bodyWidth}mm, 1fr); align-items: start; }
+          .label.stacked { grid-template-columns: 1fr; justify-items: center; text-align: center; }
+          .label.qr-only { grid-template-columns: 1fr; place-items: center; width: ${options.width}mm; min-height: ${options.height}mm; }
+          .qr { display: grid; gap: 2mm; align-content: start; justify-items: center; }
+          .qr img { width: ${options.qrSize}mm; height: ${options.qrSize}mm; border: 0.25mm solid #d8ddd7; }
+          .body { min-width: 0; }
+          .url { max-width: 100%; overflow-wrap: anywhere; font-size: ${Math.max(options.textSize - 3, 6)}pt; color: #485254; }
+          .place { margin: 0 0 1mm; color: #206f63; font-size: ${Math.max(options.textSize, 7)}pt; font-weight: 800; text-transform: uppercase; }
+          h1 { margin: 0; font-size: ${options.titleSize}pt; line-height: 1.05; overflow-wrap: anywhere; }
+          .count { margin: 2mm 0 3mm; font-size: ${Math.max(options.textSize + 2, 8)}pt; font-weight: 800; }
+          h2 { margin: 0 0 1.5mm; font-size: ${Math.max(options.textSize - 1, 7)}pt; text-transform: uppercase; }
           ul { margin: 0; padding-left: 20px; }
-          li { margin: 5px 0; font-size: 15px; }
-          li span { color: #5d686a; font-size: 13px; }
-          .more { margin-top: 8px; color: #5d686a; font-weight: 700; }
+          li, .contents p { margin: 1mm 0; font-size: ${options.textSize}pt; }
+          li span { color: #5d686a; font-size: ${Math.max(options.textSize - 1, 7)}pt; }
+          .more { margin-top: 1.5mm; color: #5d686a; font-weight: 700; font-size: ${options.textSize}pt; }
           .actions { display: flex; gap: 10px; justify-content: center; margin-top: 18px; }
           button { min-height: 42px; border: 1px solid #cfd7d0; border-radius: 6px; background: white; padding: 0 14px; font: inherit; font-weight: 800; cursor: pointer; }
           .print { background: #206f63; color: white; border-color: #206f63; }
-          @media print { body { background: white; } .page { display: block; min-height: auto; padding: 0; } .label { width: 100%; border-radius: 0; } .actions { display: none; } }
-          @media (max-width: 620px) { .label { grid-template-columns: 1fr; } }
+          @page { size: ${options.width}mm ${options.height}mm; margin: 0; }
+          @media print { body { background: white; } .page { display: block; min-height: auto; padding: 0; } .label { border-radius: 0; box-shadow: none; } .actions { display: none; } }
         </style>
       </head>
       <body>
         <main class="page">
-          <section class="label" aria-label="Storage label">
+          <section class="label ${layoutClass}" aria-label="Storage label">
             <div class="qr">
               <img src="${getQrUrl(location.id)}" alt="QR code for ${escapeHtml(location.name)}">
-              <div class="url">${escapeHtml(getLocationUrl(location.id))}</div>
+              ${urlMarkup}
             </div>
-            <div>
-              <p class="place">${escapeHtml(location.area || "Storage")}</p>
+            ${isQrOnly ? "" : `<div class="body">
+              ${placeMarkup}
               <h1>${escapeHtml(location.name)}</h1>
-              <p class="count">${items.length} item${items.length === 1 ? "" : "s"}</p>
-              <h2>Contents</h2>
-              <ul>${itemRows}</ul>
-              ${overflowCount ? `<p class="more">+ ${overflowCount} more item${overflowCount === 1 ? "" : "s"}</p>` : ""}
-            </div>
+              ${countMarkup}
+              ${contentsMarkup}
+            </div>`}
           </section>
           <div class="actions">
             <button class="print" onclick="window.print()">Print Label</button>
@@ -196,6 +298,9 @@ function createLabel(location) {
   `);
 
   labelWindow.document.close();
+  if (autoPrint) {
+    labelWindow.setTimeout(() => labelWindow.print(), 600);
+  }
 }
 
 async function loadCloudData() {
@@ -247,13 +352,32 @@ async function createLocation(name, area) {
 
   if (error) {
     showError(error);
-    return;
+    return null;
   }
 
   state.locations.unshift(data);
   activeLocationId = data.id;
   setSyncStatus("Synced", true);
-  setActiveLocation(data.id);
+  render();
+  return data;
+}
+
+async function updateLocation(locationId, updates) {
+  const { data, error } = await supabaseClient
+    .from("locations")
+    .update(updates)
+    .eq("id", locationId)
+    .select()
+    .single();
+
+  if (error) {
+    showError(error);
+    return;
+  }
+
+  state.locations = state.locations.map((location) => location.id === locationId ? data : location);
+  setSyncStatus("Synced", true);
+  render();
 }
 
 async function createItem(location, form) {
@@ -280,7 +404,29 @@ async function createItem(location, form) {
   }
 
   state.items.unshift(data);
+  form.reset();
   setSyncStatus("Synced", true);
+  render();
+}
+
+async function moveItem(itemId, locationId) {
+  const item = state.items.find((candidate) => candidate.id === itemId);
+  if (!item || item.location_id === locationId) return;
+
+  const { data, error } = await supabaseClient
+    .from("items")
+    .update({ location_id: locationId })
+    .eq("id", itemId)
+    .select()
+    .single();
+
+  if (error) {
+    showError(error);
+    return;
+  }
+
+  state.items = state.items.map((candidate) => candidate.id === itemId ? data : candidate);
+  setSyncStatus("Moved", true);
   render();
 }
 
@@ -315,11 +461,25 @@ async function deleteLocation(location) {
   render();
 }
 
-function renderLocations() {
-  els.locationList.replaceChildren();
-  els.locationCount.textContent = state.locations.length;
+function renderEmptyState() {
+  const content = els.emptyStateTemplate.content.cloneNode(true);
 
-  state.locations.forEach((location) => {
+  if (state.loading) {
+    content.querySelector("h2").textContent = "Loading your storage";
+    content.querySelector("p").textContent = "Fetching your synced data.";
+  } else if (!state.user) {
+    content.querySelector("h2").textContent = "Sign in to start";
+    content.querySelector("p").textContent = "Your locations and items will sync after you sign in.";
+  }
+
+  els.modePanel.replaceChildren(content);
+}
+
+function renderLocationList(container) {
+  const visibleLocations = getVisibleLocations();
+  container.replaceChildren();
+
+  visibleLocations.forEach((location) => {
     const items = getLocationItems(location.id);
     const button = document.createElement("button");
     button.className = `location-button${location.id === activeLocationId ? " active" : ""}`;
@@ -334,32 +494,16 @@ function renderLocations() {
     button.querySelector(".location-name").textContent = location.name;
     button.querySelector(".location-meta").textContent = location.area || "No area";
     button.addEventListener("click", () => setActiveLocation(location.id));
-    els.locationList.append(button);
+    container.append(button);
   });
 }
 
-function renderEmptyState() {
-  const content = els.emptyStateTemplate.content.cloneNode(true);
-  if (state.loading) {
-    content.querySelector("h2").textContent = "Loading your storage";
-    content.querySelector("p").textContent = "Fetching your synced data.";
-  } else if (!state.user) {
-    content.querySelector("h2").textContent = "Sign in to start";
-    content.querySelector("p").textContent = "Your locations and items will sync after you sign in.";
-  }
-  els.locationDetail.replaceChildren(content);
-}
-
-function renderDetail() {
+function renderLocationDetail(container) {
   const location = getActiveLocation();
   if (!location) {
-    activeLocationId = "";
-    renderEmptyState();
+    const content = els.emptyStateTemplate.content.cloneNode(true);
+    container.replaceChildren(content);
     return;
-  }
-
-  if (!activeLocationId) {
-    activeLocationId = location.id;
   }
 
   const content = els.locationDetailTemplate.content.cloneNode(true);
@@ -401,9 +545,7 @@ function renderDetail() {
   });
 
   if (!visibleItems.length) {
-    const empty = document.createElement("p");
-    empty.className = "item-meta";
-    empty.textContent = searchTerm ? "No matching items in this location." : "No items yet.";
+    const empty = createNode("p", "item-meta", searchTerm ? "No matching items in this location." : "No items yet.");
     itemsList.append(empty);
   }
 
@@ -412,25 +554,257 @@ function renderDetail() {
     await createItem(location, itemForm);
   });
 
-  content.querySelector(".label-button").addEventListener("click", () => createLabel(location));
+  content.querySelector(".label-button").addEventListener("click", () => openLabelDesigner(location));
   content.querySelector(".delete-location-button").addEventListener("click", () => deleteLocation(location));
 
-  els.locationDetail.replaceChildren(content);
+  container.replaceChildren(content);
+}
+
+function renderHome() {
+  const content = els.homeTemplate.content.cloneNode(true);
+  content.querySelector("#locationCount").textContent = getVisibleLocations().length;
+  renderLocationList(content.querySelector("#locationList"));
+  renderLocationDetail(content.querySelector("#locationDetail"));
+  els.modePanel.replaceChildren(content);
+}
+
+function renderAddMode() {
+  const wrapper = createNode("section", "add-grid");
+  const locationPanel = createNode("form", "panel compact-form");
+  locationPanel.innerHTML = `
+    <h2>Add Location</h2>
+    <label>
+      Name
+      <input class="new-location-name" autocomplete="off" placeholder="Blue tub 03" required>
+    </label>
+    <label>
+      Place
+      <input class="new-location-area" autocomplete="off" placeholder="Home, work, car, shed">
+    </label>
+    <button class="primary-button" type="submit">Create Location</button>
+  `;
+  locationPanel.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const name = locationPanel.querySelector(".new-location-name").value.trim();
+    const area = locationPanel.querySelector(".new-location-area").value.trim();
+    if (!name) return;
+    locationPanel.reset();
+    await createLocation(name, area);
+  });
+
+  const itemPanel = createNode("form", "panel item-form");
+  const locationOptions = state.locations
+    .map((location) => `<option value="${escapeHtml(location.id)}">${escapeHtml(location.area || "Storage")} - ${escapeHtml(location.name)}</option>`)
+    .join("");
+  itemPanel.innerHTML = `
+    <h2>Add Item</h2>
+    <label>
+      Location
+      <select class="item-location" required>${locationOptions}</select>
+    </label>
+    <div class="item-form-grid">
+      <label>
+        Item
+        <input class="item-name" autocomplete="off" placeholder="Extension cord" required>
+      </label>
+      <label>
+        Qty
+        <input class="item-quantity" type="number" min="1" step="1" value="1" required>
+      </label>
+    </div>
+    <label>
+      Category
+      <input class="item-category" autocomplete="off" placeholder="Tools">
+    </label>
+    <label>
+      Notes
+      <textarea class="item-notes" rows="3" placeholder="Black cable, 5m"></textarea>
+    </label>
+    <button class="primary-button" type="submit">Add Item</button>
+  `;
+
+  itemPanel.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const locationId = itemPanel.querySelector(".item-location").value;
+    const location = state.locations.find((candidate) => candidate.id === locationId);
+    if (!location) return;
+    await createItem(location, itemPanel);
+  });
+
+  if (!state.locations.length) {
+    itemPanel.querySelector("button").disabled = true;
+  }
+
+  wrapper.append(locationPanel, itemPanel);
+  els.modePanel.replaceChildren(wrapper);
+}
+
+function renderEditMode() {
+  const wrapper = createNode("section", "edit-grid");
+  const visibleLocations = getVisibleLocations();
+
+  visibleLocations.forEach((location) => {
+    const form = createNode("form", "panel edit-card");
+    form.innerHTML = `
+      <div>
+        <p class="eyebrow">${escapeHtml(location.area || "Storage")}</p>
+        <h2>${escapeHtml(location.name)}</h2>
+      </div>
+      <label>
+        Name
+        <input class="edit-name" value="${escapeHtml(location.name)}" required>
+      </label>
+      <label>
+        Place
+        <input class="edit-area" value="${escapeHtml(location.area || "")}" placeholder="Home, work, car">
+      </label>
+      <div class="edit-actions">
+        <button class="primary-button" type="submit">Save</button>
+        <button class="ghost-button label-button" type="button">Label</button>
+        <button class="danger-button delete-button" type="button">Delete</button>
+      </div>
+    `;
+    form.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      await updateLocation(location.id, {
+        name: form.querySelector(".edit-name").value.trim(),
+        area: form.querySelector(".edit-area").value.trim()
+      });
+    });
+    form.querySelector(".label-button").addEventListener("click", () => openLabelDesigner(location));
+    form.querySelector(".delete-button").addEventListener("click", () => deleteLocation(location));
+    wrapper.append(form);
+  });
+
+  if (!visibleLocations.length) {
+    const empty = createNode("div", "empty-state");
+    empty.innerHTML = `<div class="empty-mark">QR</div><h2>No locations to edit</h2><p>Create a location first.</p>`;
+    wrapper.append(empty);
+  }
+
+  els.modePanel.replaceChildren(wrapper);
+}
+
+function renderMoveMode() {
+  const board = createNode("section", "move-board");
+  const visibleLocations = getVisibleLocations();
+
+  visibleLocations.forEach((location) => {
+    const column = createNode("section", "move-location");
+    column.dataset.locationId = location.id;
+    column.innerHTML = `
+      <div class="move-location-header">
+        <div>
+          <p class="eyebrow">${escapeHtml(location.area || "Storage")}</p>
+          <h2 class="move-location-title">${escapeHtml(location.name)}</h2>
+        </div>
+        <span class="count-pill">${getLocationItems(location.id).length}</span>
+      </div>
+      <div class="move-items"></div>
+    `;
+
+    column.addEventListener("dragover", (event) => {
+      event.preventDefault();
+      column.classList.add("drag-over");
+    });
+    column.addEventListener("dragleave", () => column.classList.remove("drag-over"));
+    column.addEventListener("drop", async (event) => {
+      event.preventDefault();
+      column.classList.remove("drag-over");
+      await moveItem(draggedItemId, location.id);
+      draggedItemId = "";
+    });
+
+    const itemsContainer = column.querySelector(".move-items");
+    const items = getLocationItems(location.id).filter((item) => matchesSearch(location, item));
+
+    items.forEach((item) => {
+      const card = createNode("article", "move-item");
+      card.draggable = true;
+      card.dataset.itemId = item.id;
+      card.innerHTML = `
+        <span class="move-item-name"></span>
+        <span class="move-item-meta"></span>
+      `;
+      card.querySelector(".move-item-name").textContent = item.name;
+      card.querySelector(".move-item-meta").textContent = [
+        `Qty ${item.quantity}`,
+        item.category,
+        item.notes
+      ].filter(Boolean).join(" - ");
+      card.addEventListener("dragstart", (event) => {
+        draggedItemId = item.id;
+        card.classList.add("dragging");
+        event.dataTransfer.effectAllowed = "move";
+        event.dataTransfer.setData("text/plain", item.id);
+      });
+      card.addEventListener("dragend", () => card.classList.remove("dragging"));
+      itemsContainer.append(card);
+    });
+
+    if (!items.length) {
+      itemsContainer.append(createNode("div", "drop-hint", "Drop items here"));
+    }
+
+    board.append(column);
+  });
+
+  if (!visibleLocations.length) {
+    const empty = createNode("div", "empty-state");
+    empty.innerHTML = `<div class="empty-mark">QR</div><h2>No places to sort</h2><p>Add a location before moving items.</p>`;
+    board.append(empty);
+  }
+
+  els.modePanel.replaceChildren(board);
+}
+
+function renderModePanel() {
+  if (state.loading || !state.user) {
+    renderEmptyState();
+    return;
+  }
+
+  if (activeMode === "add") {
+    renderAddMode();
+    return;
+  }
+
+  if (activeMode === "edit") {
+    renderEditMode();
+    return;
+  }
+
+  if (activeMode === "move") {
+    renderMoveMode();
+    return;
+  }
+
+  renderHome();
+}
+
+function renderSummary() {
+  const places = new Set(state.locations.map((location) => (location.area || "Storage").toLowerCase()));
+  els.summaryLocations.textContent = state.locations.length;
+  els.summaryItems.textContent = state.items.length;
+  els.summaryPlaces.textContent = state.locations.length ? places.size : 0;
 }
 
 function render() {
   const signedIn = Boolean(state.user);
   els.authPanel.classList.toggle("hidden", signedIn);
   els.signOutButton.classList.toggle("hidden", !signedIn);
-  els.locationForm.querySelector("button").disabled = !signedIn;
   els.exportButton.disabled = !signedIn;
 
   if (!signedIn) {
     setSyncStatus("Sign in");
   }
 
-  renderLocations();
-  renderDetail();
+  els.modeTabs.forEach((tab) => {
+    tab.classList.toggle("active", tab.dataset.mode === activeMode);
+  });
+
+  renderSummary();
+  renderModePanel();
 }
 
 els.authForm.addEventListener("submit", async (event) => {
@@ -471,28 +845,58 @@ els.signUpButton.addEventListener("click", async () => {
     return;
   }
 
-  if (data.session) {
-    setMessage("Account created. You are signed in.");
-    return;
-  }
-
-  setMessage("Account created. Check your email, confirm the account, then sign in.");
+  setMessage(data.session ? "Account created. You are signed in." : "Account created. Check your email, confirm the account, then sign in.");
 });
 
 els.signOutButton.addEventListener("click", async () => {
   await supabaseClient.auth.signOut();
 });
 
-els.locationForm.addEventListener("submit", async (event) => {
+els.modeTabs.forEach((tab) => {
+  tab.addEventListener("click", () => setMode(tab.dataset.mode));
+});
+
+els.labelPreset.addEventListener("change", () => {
+  applyLabelPreset(els.labelPreset.value);
+});
+
+[
+  els.labelWidth,
+  els.labelHeight,
+  els.labelQrSize,
+  els.labelTitleSize,
+  els.labelTextSize,
+  els.labelItemLimit,
+  els.labelLayout
+].forEach((control) => {
+  control.addEventListener("input", () => {
+    if (els.labelPreset.value !== "custom") {
+      els.labelPreset.value = "custom";
+    }
+  });
+});
+
+els.closeLabelDesigner.addEventListener("click", closeLabelDesigner);
+
+els.labelDesigner.addEventListener("click", (event) => {
+  if (event.target === els.labelDesigner) {
+    closeLabelDesigner();
+  }
+});
+
+els.previewLabelButton.addEventListener("click", () => {
+  const location = state.locations.find((candidate) => candidate.id === labelLocationId);
+  if (location) {
+    createLabel(location, getLabelOptions(), false);
+  }
+});
+
+els.labelDesignerForm.addEventListener("submit", (event) => {
   event.preventDefault();
-  if (!state.user) return;
-
-  const name = els.locationName.value.trim();
-  if (!name) return;
-
-  const area = els.locationArea.value.trim();
-  els.locationForm.reset();
-  await createLocation(name, area);
+  const location = state.locations.find((candidate) => candidate.id === labelLocationId);
+  if (location) {
+    createLabel(location, getLabelOptions(), true);
+  }
 });
 
 els.searchInput.addEventListener("input", (event) => {
@@ -524,6 +928,7 @@ els.exportButton.addEventListener("click", () => {
 window.addEventListener("hashchange", () => {
   const locationId = readHashLocation();
   if (locationId && state.locations.some((location) => location.id === locationId)) {
+    activeMode = "home";
     setActiveLocation(locationId, false);
   }
 });

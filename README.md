@@ -6,8 +6,11 @@ A small static MVP for organizing home storage with QR-coded locations.
 
 - Create storage locations like boxes, shelves, drawers, tubs, and rooms.
 - Add items with quantity, category, and notes.
+- Edit locations after they are created.
+- Move items between locations with a drag and drop sorting board.
 - Generate a QR label URL for each location.
 - Create a printable container label with the QR code, place, location name, item count, and contents preview.
+- Customize label size, QR size, text size, layout, and included fields before printing.
 - Search locations and items.
 - Export your saved inventory as JSON.
 
