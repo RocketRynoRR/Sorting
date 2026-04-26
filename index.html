@@ -26,18 +26,26 @@
   <script>
 
     let boxes = [];
+const savedBoxes = localStorage.getItem("boxes");
 
+if (savedBoxes) {
+  boxes = JSON.parse(savedBoxes);
+  displayBoxes();
+}
     function addBox() {
 
       const name = document.getElementById("boxName").value;
       const location = document.getElementById("boxLocation").value;
 
       const box = {
-        name: name,
-        location: location
-      };
+  id: "BOX" + (boxes.length + 1).toString().padStart(3, "0"),
+  name: name,
+  location: location
+};
 
       boxes.push(box);
+
+      localStorage.setItem("boxes", JSON.stringify(boxes));
 
       displayBoxes();
     }
@@ -56,7 +64,7 @@
             padding:10px;
             margin-bottom:10px;
           ">
-            <h3>${box.name}</h3>
+            <h3>${box.id} - ${box.name}</h3>
             <p>Location: ${box.location}</p>
           </div>
         `;
