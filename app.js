@@ -22,6 +22,7 @@ let searchTerm = "";
 let draggedItemId = "";
 let labelLocationId = "";
 let shareTarget = null;
+const expandedLocationIds = new Set();
 
 const labelPresets = {
   small: { width: 70, height: 38, qrSize: 24, titleSize: 14, textSize: 8, itemLimit: 3, layout: "side" },
@@ -185,6 +186,29 @@ function getLocationTreeOptions(parentId = null, selectedId = "", excludedId = "
       ].join("");
     })
     .join("");
+}
+
+function getLocationAncestors(location) {
+  const ancestors = [];
+  let parent = getLocationById(location?.parent_location_id);
+  const seen = new Set([location?.id].filter(Boolean));
+
+  while (parent && !seen.has(parent.id)) {
+    ancestors.unshift(parent);
+    seen.add(parent.id);
+    parent = getLocationById(parent.parent_location_id);
+  }
+
+  return ancestors;
+}
+
+function getOrderedLocations(parentId = null, depth = 0) {
+  return sortLocationsByName(
+    state.locations.filter((location) => (location.parent_location_id || null) === parentId)
+  ).flatMap((location) => [
+    { location, depth },
+    ...getOrderedLocations(location.id, depth + 1)
+  ]);
 }
 
 function getLocationOptions(selectedId = "", excludedId = "") {
@@ -373,6 +397,8 @@ function normalizeTagName(name) {
 
 function setActiveLocation(locationId, updateHash = true) {
   activeLocationId = locationId;
+  const location = getLocationById(locationId);
+  getLocationAncestors(location).forEach((ancestor) => expandedLocationIds.add(ancestor.id));
   if (updateHash && locationId) {
     window.location.hash = `location=${encodeURIComponent(locationId)}`;
   }
@@ -759,6 +785,7 @@ async function loadCloudData() {
     : state.locations.some((location) => location.id === activeLocationId)
       ? activeLocationId
       : state.locations[0]?.id || "";
+  getLocationAncestors(getLocationById(activeLocationId)).forEach((ancestor) => expandedLocationIds.add(ancestor.id));
 
   state.loading = false;
   setSyncStatus("Synced", true);
@@ -1120,18 +1147,29 @@ function renderEmptyState() {
 }
 
 function renderLocationList(container) {
-  const visibleLocations = getVisibleLocations();
+  const matchedLocations = getVisibleLocations();
+  const visibleIdSet = new Set(matchedLocations.map((location) => location.id));
+  if (searchTerm) {
+    matchedLocations.forEach((location) => {
+      getLocationAncestors(location).forEach((ancestor) => visibleIdSet.add(ancestor.id));
+    });
+  }
+  const visibleLocations = getOrderedLocations().filter(({ location, depth }) => {
+    if (searchTerm) return visibleIdSet.has(location.id);
+    return depth === 0 || expandedLocationIds.has(location.parent_location_id);
+  });
   container.replaceChildren();
 
-  visibleLocations.forEach((location) => {
+  visibleLocations.forEach(({ location, depth }) => {
     const items = getLocationItems(location.id);
     const childCount = getChildLocations(location.id).length;
-    const depth = getLocationDepth(location);
+    const isExpanded = expandedLocationIds.has(location.id);
     const button = document.createElement("button");
     button.className = `location-button${location.id === activeLocationId ? " active" : ""}`;
     button.type = "button";
     button.style.setProperty("--location-depth", depth);
     button.innerHTML = `
+      <span class="tree-toggle" aria-hidden="true">${childCount ? (isExpanded ? "-" : "+") : ""}</span>
       <span>
         <span class="location-name"></span>
         <span class="location-meta"></span>
@@ -1142,13 +1180,26 @@ function renderLocationList(container) {
     button.querySelector(".location-name").textContent = location.name;
     button.querySelector(".location-meta").textContent = [
       location.area || "No area",
-      location.parent_location_id ? `Inside ${getLocationPath(getLocationById(location.parent_location_id))}` : "",
+      location.parent_location_id ? `Inside ${getLocationById(location.parent_location_id)?.name || "Parent"}` : "",
       getLocationSections(location).length ? `${getLocationSections(location).length} section${getLocationSections(location).length === 1 ? "" : "s"}` : "",
-      childCount ? `${childCount} sub-location${childCount === 1 ? "" : "s"}` : ""
+      childCount ? `${childCount} nested location${childCount === 1 ? "" : "s"}` : ""
     ].filter(Boolean).join(" - ");
-    button.addEventListener("click", () => setActiveLocation(location.id));
+    button.addEventListener("click", () => {
+      if (childCount) {
+        if (isExpanded) {
+          expandedLocationIds.delete(location.id);
+        } else {
+          expandedLocationIds.add(location.id);
+        }
+      }
+      setActiveLocation(location.id);
+    });
     container.append(button);
   });
+
+  if (!visibleLocations.length) {
+    container.append(createNode("p", "item-meta", searchTerm ? "No matching locations." : "No locations yet."));
+  }
 }
 
 function renderLocationDetail(container) {

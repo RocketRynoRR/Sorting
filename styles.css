@@ -642,6 +642,24 @@ textarea:focus {
   text-align: left;
 }
 
+.tree-toggle {
+  flex: 0 0 24px;
+  width: 24px;
+  height: 24px;
+  display: grid;
+  place-items: center;
+  border-radius: 6px;
+  background: var(--surface);
+  color: var(--accent-strong);
+  font-weight: 900;
+  line-height: 1;
+}
+
+.location-button > span:not(.tree-toggle) {
+  min-width: 0;
+  flex: 1;
+}
+
 .location-button.active {
   border-color: var(--accent);
   background: var(--accent-soft);
