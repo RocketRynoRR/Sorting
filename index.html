@@ -1,158 +1,121 @@
-<!DOCTYPE html>
-<html>
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Home QR Storage</title>
+    <link rel="stylesheet" href="styles.css">
+  </head>
+  <body>
+    <div class="app-shell">
+      <header class="topbar">
+        <div>
+          <p class="eyebrow">Home inventory</p>
+          <h1>QR Storage</h1>
+        </div>
+        <button class="ghost-button" id="exportButton" type="button">Export</button>
+      </header>
 
-<head>
-  <title>QR Storage Manager</title>
-  <script src="https://cdn.jsdelivr.net/npm/qrcode/build/qrcode.min.js"></script>
-</head>
+      <main class="layout">
+        <aside class="sidebar" aria-label="Storage locations">
+          <form class="panel compact-form" id="locationForm">
+            <h2>Add Location</h2>
+            <label>
+              Name
+              <input id="locationName" name="locationName" autocomplete="off" placeholder="Blue tub 03" required>
+            </label>
+            <label>
+              Area
+              <input id="locationArea" name="locationArea" autocomplete="off" placeholder="Garage">
+            </label>
+            <button class="primary-button" type="submit">Create Location</button>
+          </form>
 
-<body>
+          <section class="panel">
+            <div class="section-heading">
+              <h2>Locations</h2>
+              <span id="locationCount">0</span>
+            </div>
+            <div class="location-list" id="locationList"></div>
+          </section>
+        </aside>
 
-  <h1>QR Storage Manager</h1>
+        <section class="workspace">
+          <div class="toolbar">
+            <label class="search">
+              <span>Search</span>
+              <input id="searchInput" autocomplete="off" placeholder="Item, box, room, note">
+            </label>
+            <button class="ghost-button" id="clearSearchButton" type="button">Clear</button>
+          </div>
 
-  <p>Manage storage boxes and locations</p>
-<h2>Add Main Location</h2>
+          <section class="location-detail" id="locationDetail"></section>
+        </section>
+      </main>
+    </div>
 
-<input type="text" id="mainLocationName" placeholder="Work, Home, Shed etc.">
+    <template id="emptyStateTemplate">
+      <div class="empty-state">
+        <div class="empty-mark">QR</div>
+        <h2>Create your first storage location</h2>
+        <p>Start with one box, shelf, drawer, or tub.</p>
+      </div>
+    </template>
 
-<button onclick="addMainLocation()">Add Location</button>
+    <template id="locationDetailTemplate">
+      <div class="detail-header">
+        <div>
+          <p class="eyebrow location-area"></p>
+          <h2 class="location-title"></h2>
+        </div>
+        <div class="detail-actions">
+          <button class="ghost-button print-button" type="button">Print QR</button>
+          <button class="danger-button delete-location-button" type="button">Delete</button>
+        </div>
+      </div>
 
-<h2>Select Main Location</h2>
+      <div class="detail-grid">
+        <section class="panel qr-panel">
+          <img class="qr-image" alt="">
+          <div>
+            <h3>Label URL</h3>
+            <input class="qr-url" readonly>
+          </div>
+        </section>
 
-<select id="selectedMainLocation" onchange="displayBoxes()">
-</select>
-  <h2>Add New Box</h2>
+        <form class="panel item-form">
+          <h3>Add Item</h3>
+          <div class="item-form-grid">
+            <label>
+              Item
+              <input class="item-name" autocomplete="off" placeholder="Extension cord" required>
+            </label>
+            <label>
+              Qty
+              <input class="item-quantity" type="number" min="1" step="1" value="1" required>
+            </label>
+          </div>
+          <label>
+            Category
+            <input class="item-category" autocomplete="off" placeholder="Tools">
+          </label>
+          <label>
+            Notes
+            <textarea class="item-notes" rows="3" placeholder="Black cable, 5m"></textarea>
+          </label>
+          <button class="primary-button" type="submit">Add Item</button>
+        </form>
+      </div>
 
-  <input type="text" id="boxName" placeholder="Box Name">
+      <section class="panel">
+        <div class="section-heading">
+          <h3>Items</h3>
+          <span class="item-count">0</span>
+        </div>
+        <div class="items-list"></div>
+      </section>
+    </template>
 
-  <input type="text" id="boxLocation" placeholder="Location">
-
-  <button onclick="addBox()">Add Box</button>
-
-  <h2>Stored Boxes</h2>
-
-  <div id="boxList"></div>
-
-  <script>
-
-    let boxes = [];
-let mainLocations = [];
-const savedBoxes = localStorage.getItem("boxes");
-
-if (savedBoxes) {
-  boxes = JSON.parse(savedBoxes);
-  displayBoxes();
-}
-    const savedMainLocations = localStorage.getItem("mainLocations");
-
-if (savedMainLocations) {
-  mainLocations = JSON.parse(savedMainLocations);
-}
-
-function addMainLocation() {
-  const name = document.getElementById("mainLocationName").value;
-
-  if (name.trim() === "") {
-    alert("Please enter a location name.");
-    return;
-  }
-
-  const location = {
-    id: "LOC" + (mainLocations.length + 1).toString().padStart(3, "0"),
-    name: name
-  };
-
-  mainLocations.push(location);
-
-  localStorage.setItem("mainLocations", JSON.stringify(mainLocations));
-
-  document.getElementById("mainLocationName").value = "";
-
-  displayMainLocations();
-}
-
-function displayMainLocations() {
-  const select = document.getElementById("selectedMainLocation");
-
-  select.innerHTML = "";
-
-  mainLocations.forEach((location) => {
-    select.innerHTML += `
-      <option value="${location.id}">${location.name}</option>
-    `;
-  });
-}
-    function addBox() {
-
-      const name = document.getElementById("boxName").value;
-      const location = document.getElementById("boxLocation").value;
-
-      const selectedMainLocation = document.getElementById("selectedMainLocation").value;
-
-const box = {
-  id: "BOX" + (boxes.length + 1).toString().padStart(3, "0"),
-  mainLocationId: selectedMainLocation,
-  name: name,
-  location: location
-};
-
-      boxes.push(box);
-
-      localStorage.setItem("boxes", JSON.stringify(boxes));
-
-      displayBoxes();
-    }
-
-    function displayBoxes() {
-
-      const boxList = document.getElementById("boxList");
-
-      boxList.innerHTML = "";
-
-      const selectedMainLocation = document.getElementById("selectedMainLocation").value;
-
-const filteredBoxes = boxes.filter(box => box.mainLocationId === selectedMainLocation);
-
-filteredBoxes.forEach((box) => {
-
-       boxList.innerHTML += `
-  <div style="
-    border:1px solid #ccc;
-    padding:10px;
-    margin-bottom:10px;
-  ">
-    <h3>${box.id} - ${box.name}</h3>
-    <p>Location: ${box.location}</p>
-
-    <button onclick="generateQRCode('${box.id}')">
-      Create QR Code
-    </button>
-
-    <div id="qr-${box.id}" style="margin-top:10px;"></div>
-  </div>
-`;
-      });
-    }
-function generateQRCode(boxId) {
-  const qrContainer = document.getElementById("qr-" + boxId);
-
-  qrContainer.innerHTML = "";
-
-  QRCode.toCanvas(boxId, function (error, canvas) {
-    if (error) {
-      alert("QR code could not be created.");
-      console.error(error);
-      return;
-    }
-
-    qrContainer.appendChild(canvas);
-  });
-}
-    
-displayMainLocations();
-displayBoxes();
-  </script>
-
-</body>
-
+    <script src="app.js"></script>
+  </body>
 </html>
