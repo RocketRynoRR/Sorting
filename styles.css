@@ -1033,11 +1033,37 @@ textarea:focus {
     display: none;
     max-width: none;
     width: 100%;
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 8px;
+    padding: 8px;
+    align-items: center;
   }
 
   .search-bubble.open {
     display: grid;
+  }
+
+  .search-bubble .search {
+    display: block;
+    text-align: left;
+  }
+
+  .search-bubble .search span {
+    display: none;
+  }
+
+  .search-bubble input {
+    height: 42px;
+    min-height: 42px;
+    padding: 0 10px;
+  }
+
+  .search-bubble .ghost-button {
+    height: 42px;
+    min-height: 42px;
+    min-width: 64px;
+    padding: 0 10px;
+    flex: 0 0 auto;
   }
 
   .search-icon-button:not(.hidden) {
@@ -1079,22 +1105,25 @@ textarea:focus {
   }
 
   .summary-grid {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: 6px;
+    display: grid !important;
+    grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+    gap: 6px !important;
   }
 
   .summary-card {
-    padding: 9px 6px;
+    min-width: 0;
+    padding: 8px 5px;
     text-align: center;
   }
 
   .summary-card span {
-    font-size: 0.62rem;
+    font-size: 0.58rem;
+    line-height: 1.1;
   }
 
   .summary-card strong {
     margin-top: 4px;
-    font-size: 1.25rem;
+    font-size: 1.15rem;
   }
 
   .mode-tabs {
