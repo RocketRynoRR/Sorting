@@ -8,6 +8,7 @@
 <body>
 
   <h1>QR Storage Manager</h1>
+
   <p>Manage storage boxes and locations</p>
 
   <h2>Add New Box</h2>
@@ -17,6 +18,52 @@
   <input type="text" id="boxLocation" placeholder="Location">
 
   <button onclick="addBox()">Add Box</button>
+
+  <h2>Stored Boxes</h2>
+
+  <div id="boxList"></div>
+
+  <script>
+
+    let boxes = [];
+
+    function addBox() {
+
+      const name = document.getElementById("boxName").value;
+      const location = document.getElementById("boxLocation").value;
+
+      const box = {
+        name: name,
+        location: location
+      };
+
+      boxes.push(box);
+
+      displayBoxes();
+    }
+
+    function displayBoxes() {
+
+      const boxList = document.getElementById("boxList");
+
+      boxList.innerHTML = "";
+
+      boxes.forEach((box) => {
+
+        boxList.innerHTML += `
+          <div style="
+            border:1px solid #ccc;
+            padding:10px;
+            margin-bottom:10px;
+          ">
+            <h3>${box.name}</h3>
+            <p>Location: ${box.location}</p>
+          </div>
+        `;
+      });
+    }
+
+  </script>
 
 </body>
 
