@@ -66,7 +66,7 @@
 
         <nav class="mode-tabs" aria-label="Storage tools">
           <button class="mode-tab active" data-mode="home" type="button">Main Page</button>
-          <button class="mode-tab" data-mode="add" type="button">Search / Add</button>
+          <button class="mode-tab" data-mode="add" type="button">Add New Item</button>
           <button class="mode-tab" data-mode="edit" type="button">Edit Locations</button>
           <button class="mode-tab" data-mode="move" type="button">Move Items</button>
           <button class="mode-tab" data-mode="shared" type="button">Shared Locations</button>
@@ -75,7 +75,7 @@
           Menu
           <select id="mobileModeSelect" class="mobile-mode-select">
             <option value="home">Main Page</option>
-            <option value="add">Search / Add</option>
+            <option value="add">Add New Item</option>
             <option value="edit">Edit Locations</option>
             <option value="move">Move Items</option>
             <option value="shared">Shared Locations</option>
@@ -250,6 +250,10 @@
           <label>
             Category
             <select class="item-category" required></select>
+          </label>
+          <label class="new-category-field hidden">
+            New category
+            <input class="new-category-name" autocomplete="off" placeholder="Tools">
           </label>
           <label>
             Notes

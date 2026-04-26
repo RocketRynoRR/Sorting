@@ -301,6 +301,27 @@ function getCategoryOptions(selectedCategory = "") {
   return `${options}<option value="__new__">Add new category...</option>` || `<option value="__new__">Add new category...</option>`;
 }
 
+function setupCategoryPicker(form) {
+  const select = form.querySelector(".item-category");
+  const newCategoryField = form.querySelector(".new-category-field");
+  const newCategoryInput = form.querySelector(".new-category-name");
+  if (!select || !newCategoryField || !newCategoryInput) return;
+
+  const update = () => {
+    const addingNew = select.value === "__new__";
+    newCategoryField.classList.toggle("hidden", !addingNew);
+    newCategoryInput.required = addingNew;
+    if (addingNew) {
+      newCategoryInput.focus();
+    } else {
+      newCategoryInput.value = "";
+    }
+  };
+
+  select.addEventListener("change", update);
+  update();
+}
+
 function normalizeTagName(name) {
   return name.trim().replace(/\s+/g, " ");
 }
@@ -835,7 +856,7 @@ async function updateDarkMode(enabled) {
   render();
 }
 
-async function createCategory(name) {
+async function createCategory(name, renderAfter = true) {
   const cleanName = normalizeTagName(name);
   if (!cleanName) return;
 
@@ -856,7 +877,7 @@ async function createCategory(name) {
   state.categories.push(data);
   state.categories.sort((a, b) => a.name.localeCompare(b.name));
   setSyncStatus("Synced", true);
-  render();
+  if (renderAfter) render();
   return data;
 }
 
@@ -945,9 +966,14 @@ async function shareRecord(type, record, recipientEmail) {
 async function createItem(location, form) {
   let category = form.querySelector(".item-category").value.trim();
   if (category === "__new__") {
-    const entered = window.prompt("New category name");
-    const created = await createCategory(entered || "");
+    const entered = form.querySelector(".new-category-name")?.value.trim() || "";
+    const created = await createCategory(entered || "", false);
     category = created?.name || "";
+  }
+
+  if (!category) {
+    setMessage("Choose or add a category first.");
+    return;
   }
 
   const photoData = await imageInputToData(form.querySelector(".item-photo"));
@@ -1107,7 +1133,8 @@ function renderLocationDetail(container) {
   qrImage.alt = `QR code for ${location.name}`;
   qrUrl.value = getLocationUrl(location.id);
   categorySelect.innerHTML = getCategoryOptions();
-  itemForm.querySelector("button").disabled = !isOwnRecord(location) || !getCategoryNames().length;
+  setupCategoryPicker(itemForm);
+  itemForm.querySelector("button").disabled = !isOwnRecord(location);
 
   const visibleItems = getLocationItems(location.id).filter((item) => matchesSearch(location, item));
   itemCount.textContent = visibleItems.length;
@@ -1255,11 +1282,9 @@ function renderAddMode() {
   });
 
   const itemPanel = createNode("form", "panel item-form");
-  const locationOptions = state.locations
-    .map((location) => `<option value="${escapeHtml(location.id)}">${escapeHtml(location.area || "Storage")} - ${escapeHtml(getLocationPath(location))}</option>`)
-    .join("");
+  const locationOptions = getLocationTreeOptions(null);
   itemPanel.innerHTML = `
-    <h2>Add Item</h2>
+    <h2>Add New Item</h2>
     <label>
       Location
       <select class="item-location" required>${locationOptions}</select>
@@ -1278,12 +1303,21 @@ function renderAddMode() {
       Category
       <select class="item-category" required>${getCategoryOptions()}</select>
     </label>
+    <label class="new-category-field hidden">
+      New category
+      <input class="new-category-name" autocomplete="off" placeholder="Tools">
+    </label>
     <label>
       Notes
       <textarea class="item-notes" rows="3" placeholder="Black cable, 5m"></textarea>
     </label>
+    <label>
+      Photo
+      <input class="item-photo" type="file" accept="image/*" capture="environment">
+    </label>
     <button class="primary-button" type="submit">Add Item</button>
   `;
+  setupCategoryPicker(itemPanel);
 
   itemPanel.addEventListener("submit", async (event) => {
     event.preventDefault();
@@ -1294,9 +1328,6 @@ function renderAddMode() {
   });
 
   if (!state.locations.length) {
-    itemPanel.querySelector("button").disabled = true;
-  }
-  if (!getCategoryNames().length) {
     itemPanel.querySelector("button").disabled = true;
   }
   if (!getPlaceNames().length) {
