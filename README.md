@@ -20,7 +20,8 @@ A small static MVP for organizing home storage with QR-coded locations.
 - Create a printable container label with the QR code, parent location, place, location name, item count, and contents preview.
 - Customize label size, QR size, text size, layout, and included fields before printing.
 - Preview labels live before printing.
-- Search and add locations/items on a dedicated Add New Item page.
+- Search items, locations, and categories from a global search bubble.
+- Add new locations from a dedicated Add Location page.
 - Export your saved inventory as JSON.
 
 Data is stored in Supabase after sign-in, so it can sync across devices.

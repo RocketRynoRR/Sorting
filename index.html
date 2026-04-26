@@ -65,8 +65,8 @@
         </section>
 
         <nav class="mode-tabs" aria-label="Storage tools">
-          <button class="mode-tab active" data-mode="home" type="button">Main Page</button>
-          <button class="mode-tab" data-mode="add" type="button">Add New Item</button>
+          <button class="mode-tab active" data-mode="home" type="button">Add Item</button>
+          <button class="mode-tab" data-mode="add" type="button">Add Location</button>
           <button class="mode-tab" data-mode="edit" type="button">Edit Locations</button>
           <button class="mode-tab" data-mode="move" type="button">Move Items</button>
           <button class="mode-tab" data-mode="shared" type="button">Shared Locations</button>
@@ -74,20 +74,21 @@
         <label class="mobile-mode-control">
           Menu
           <select id="mobileModeSelect" class="mobile-mode-select">
-            <option value="home">Main Page</option>
-            <option value="add">Add New Item</option>
+            <option value="home">Add Item</option>
+            <option value="add">Add Location</option>
             <option value="edit">Edit Locations</option>
             <option value="move">Move Items</option>
             <option value="shared">Shared Locations</option>
           </select>
         </label>
 
-        <div class="toolbar hidden" id="searchToolbar">
+        <div class="toolbar search-bubble hidden" id="searchToolbar">
           <label class="search">
             <span>Search</span>
-            <input id="searchInput" autocomplete="off" placeholder="Item, box, room, note">
+            <input id="searchInput" autocomplete="off" placeholder="Find items, locations, categories">
           </label>
           <button class="ghost-button" id="clearSearchButton" type="button">Clear</button>
+          <div class="search-results hidden" id="searchResults"></div>
         </div>
 
         <section class="mode-panel" id="modePanel"></section>

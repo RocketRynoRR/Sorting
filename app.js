@@ -47,6 +47,7 @@ const els = {
   exportButton: document.querySelector("#exportButton"),
   searchInput: document.querySelector("#searchInput"),
   searchToolbar: document.querySelector("#searchToolbar"),
+  searchResults: document.querySelector("#searchResults"),
   clearSearchButton: document.querySelector("#clearSearchButton"),
   mobileModeSelect: document.querySelector("#mobileModeSelect"),
   modePanel: document.querySelector("#modePanel"),
@@ -316,6 +317,72 @@ function matchesSearch(location, item = null) {
     .toLowerCase();
 
   return haystack.includes(searchTerm.toLowerCase());
+}
+
+function renderGlobalSearchResults() {
+  if (!els.searchResults) return;
+
+  const term = searchTerm.trim().toLowerCase();
+  els.searchResults.classList.toggle("hidden", !term || !state.user);
+  els.searchResults.replaceChildren();
+  if (!term || !state.user) return;
+
+  const locations = state.locations
+    .filter((location) => matchesSearch(location))
+    .slice(0, 6);
+  const items = state.items
+    .filter((item) => {
+      const location = getLocationById(item.location_id);
+      return location && matchesSearch(location, item);
+    })
+    .slice(0, 8);
+  const categories = getCategoryNames()
+    .filter((name) => name.toLowerCase().includes(term))
+    .slice(0, 6);
+  const total = locations.length + items.length + categories.length;
+
+  if (!total) {
+    els.searchResults.append(createNode("p", "item-meta", "No matching items, locations, or categories."));
+    return;
+  }
+
+  const addResult = (label, meta, onClick) => {
+    const button = document.createElement("button");
+    button.className = "search-result";
+    button.type = "button";
+    button.innerHTML = `<span></span><small></small>`;
+    button.querySelector("span").textContent = label;
+    button.querySelector("small").textContent = meta;
+    button.addEventListener("click", onClick);
+    els.searchResults.append(button);
+  };
+
+  locations.forEach((location) => {
+    addResult(getLocationPath(location), `Location - ${location.area || "Storage"}`, () => {
+      activeMode = "home";
+      setActiveLocation(location.id);
+    });
+  });
+
+  items.forEach((item) => {
+    const location = getLocationById(item.location_id);
+    addResult(item.name, [
+      "Item",
+      item.category,
+      location ? getLocationPath(location) : "",
+      item.section ? `Section: ${item.section}` : ""
+    ].filter(Boolean).join(" - "), () => {
+      activeMode = "home";
+      setActiveLocation(item.location_id);
+    });
+  });
+
+  categories.forEach((category) => {
+    addResult(category, "Category tag", () => {
+      activeMode = "settings";
+      render();
+    });
+  });
 }
 
 function getVisibleLocations() {
@@ -1309,50 +1376,6 @@ function renderHome() {
 
 function renderAddMode() {
   const wrapper = createNode("section", "add-grid");
-  const resultsPanel = createNode("section", "panel");
-  const visibleLocations = getVisibleLocations();
-  const visibleItems = state.items.filter((item) => {
-    const location = getLocationById(item.location_id);
-    return location && matchesSearch(location, item);
-  });
-  resultsPanel.innerHTML = `
-    <div class="section-heading">
-      <h2>Search Results</h2>
-      <span class="count-pill">${visibleLocations.length + visibleItems.length}</span>
-    </div>
-    <div class="items-list tag-list-scroll"></div>
-  `;
-  const results = resultsPanel.querySelector(".items-list");
-  visibleLocations.slice(0, 10).forEach((location) => {
-    const row = createNode("article", "item-row");
-    row.innerHTML = `<div><p class="item-name-text"></p><p class="item-meta"></p></div><button class="ghost-button" type="button">Open</button>`;
-    row.querySelector(".item-name-text").textContent = getLocationPath(location);
-    row.querySelector(".item-meta").textContent = `Location - ${location.area || "Storage"}`;
-    row.querySelector("button").addEventListener("click", () => {
-      activeMode = "home";
-      setActiveLocation(location.id);
-    });
-    results.append(row);
-  });
-  visibleItems.slice(0, 10).forEach((item) => {
-    const location = getLocationById(item.location_id);
-    const row = createNode("article", "item-row");
-    row.innerHTML = `<div>${item.photo_data ? `<img class="item-photo-thumb" src="${item.photo_data}" alt="">` : ""}<p class="item-name-text"></p><p class="item-meta"></p></div><button class="ghost-button" type="button">Open Box</button>`;
-    row.querySelector(".item-name-text").textContent = item.name;
-    row.querySelector(".item-meta").textContent = [
-      item.category || "Item",
-      location ? getLocationPath(location) : "Unknown location",
-      item.section ? `Section: ${item.section}` : ""
-    ].filter(Boolean).join(" - ");
-    row.querySelector("button").addEventListener("click", () => {
-      if (!location) return;
-      activeMode = "home";
-      setActiveLocation(location.id);
-    });
-    results.append(row);
-  });
-  if (!results.children.length) results.append(createNode("p", "item-meta", "No results yet."));
-
   const locationPanel = createNode("form", "panel compact-form");
   locationPanel.innerHTML = `
     <h2>Add Location</h2>
@@ -1391,70 +1414,11 @@ function renderAddMode() {
     await createLocation(name, area, parentLocationId, photoData, sections);
   });
 
-  const itemPanel = createNode("form", "panel item-form");
-  const locationOptions = getLocationTreeOptions(null);
-  itemPanel.innerHTML = `
-    <h2>Add New Item</h2>
-    <label>
-      Location
-      <select class="item-location" required>${locationOptions}</select>
-    </label>
-    <div class="item-form-grid">
-      <label>
-        Item
-        <input class="item-name" autocomplete="off" placeholder="Extension cord" required>
-      </label>
-      <label>
-        Qty
-        <input class="item-quantity" type="number" min="1" step="1" value="1" required>
-      </label>
-    </div>
-    <label>
-      Category
-      <select class="item-category" required>${getCategoryOptions()}</select>
-    </label>
-    <label class="new-category-field hidden">
-      New category
-      <input class="new-category-name" autocomplete="off" placeholder="Tools">
-    </label>
-    <label class="item-section-field hidden">
-      Section
-      <select class="item-section"></select>
-    </label>
-    <label>
-      Notes
-      <textarea class="item-notes" rows="3" placeholder="Black cable, 5m"></textarea>
-    </label>
-    <label>
-      Photo
-      <input class="item-photo" type="file" accept="image/*" capture="environment">
-    </label>
-    <button class="primary-button" type="submit">Add Item</button>
-  `;
-  setupCategoryPicker(itemPanel);
-  const updateItemSections = () => {
-    const location = getLocationById(itemPanel.querySelector(".item-location").value);
-    setupSectionPicker(itemPanel, location);
-  };
-  itemPanel.querySelector(".item-location").addEventListener("change", updateItemSections);
-  updateItemSections();
-
-  itemPanel.addEventListener("submit", async (event) => {
-    event.preventDefault();
-    const locationId = itemPanel.querySelector(".item-location").value;
-    const location = state.locations.find((candidate) => candidate.id === locationId);
-    if (!location) return;
-    await createItem(location, itemPanel);
-  });
-
-  if (!state.locations.length) {
-    itemPanel.querySelector("button").disabled = true;
-  }
   if (!getPlaceNames().length) {
     locationPanel.querySelector("button").disabled = true;
   }
 
-  wrapper.append(resultsPanel, locationPanel, itemPanel);
+  wrapper.append(locationPanel);
   els.modePanel.replaceChildren(wrapper);
 }
 
@@ -1864,7 +1828,7 @@ function render() {
   els.accountButton.textContent = getAccountInitial();
   els.exportButton.disabled = !signedIn || !supabaseClient;
   if (els.searchToolbar) {
-    els.searchToolbar.classList.toggle("hidden", !signedIn || activeMode !== "add");
+    els.searchToolbar.classList.toggle("hidden", !signedIn);
   }
 
   els.modeTabs.forEach((tab) => {
@@ -1880,6 +1844,7 @@ function render() {
     els.mobileModeSelect.value = activeMode;
   }
   renderSummary();
+  renderGlobalSearchResults();
   if (signedIn) {
     renderModePanel();
   }
@@ -2038,12 +2003,14 @@ els.shareForm.addEventListener("submit", async (event) => {
 
 els.searchInput.addEventListener("input", (event) => {
   searchTerm = event.target.value.trim();
+  renderGlobalSearchResults();
   render();
 });
 
 els.clearSearchButton.addEventListener("click", () => {
   searchTerm = "";
   els.searchInput.value = "";
+  renderGlobalSearchResults();
   render();
 });
 
