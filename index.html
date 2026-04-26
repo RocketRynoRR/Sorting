@@ -13,8 +13,34 @@
           <p class="eyebrow">Home inventory</p>
           <h1>QR Storage</h1>
         </div>
-        <button class="ghost-button" id="exportButton" type="button">Export</button>
+        <div class="topbar-actions">
+          <span class="sync-status" id="syncStatus">Offline</span>
+          <button class="ghost-button" id="exportButton" type="button">Export</button>
+          <button class="ghost-button hidden" id="signOutButton" type="button">Sign Out</button>
+        </div>
       </header>
+
+      <section class="auth-panel panel" id="authPanel">
+        <div>
+          <p class="eyebrow">Cloud sync</p>
+          <h2>Sign in to save and sync your storage list</h2>
+        </div>
+        <form class="auth-form" id="authForm">
+          <label>
+            Email
+            <input id="authEmail" type="email" autocomplete="email" placeholder="you@example.com" required>
+          </label>
+          <label>
+            Password
+            <input id="authPassword" type="password" autocomplete="current-password" placeholder="At least 6 characters" required>
+          </label>
+          <div class="auth-actions">
+            <button class="primary-button" id="signInButton" type="submit">Sign In</button>
+            <button class="ghost-button" id="signUpButton" type="button">Create Account</button>
+          </div>
+          <p class="auth-message" id="authMessage"></p>
+        </form>
+      </section>
 
       <main class="layout">
         <aside class="sidebar" aria-label="Storage locations">
@@ -116,6 +142,7 @@
       </section>
     </template>
 
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="app.js"></script>
   </body>
 </html>

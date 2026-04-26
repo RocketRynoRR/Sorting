@@ -47,7 +47,9 @@ button {
 .detail-header,
 .section-heading,
 .item-row,
-.location-button {
+.location-button,
+.topbar-actions,
+.auth-actions {
   display: flex;
 }
 
@@ -56,6 +58,31 @@ button {
   justify-content: space-between;
   gap: 16px;
   padding: 10px 0 22px;
+}
+
+.topbar-actions {
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.sync-status {
+  min-height: 34px;
+  display: inline-grid;
+  place-items: center;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--muted);
+  font-size: 0.82rem;
+  font-weight: 800;
+  padding: 0 12px;
+}
+
+.sync-status.online {
+  border-color: #a9d6ca;
+  background: var(--accent-soft);
+  color: var(--accent-strong);
 }
 
 .topbar h1,
@@ -111,6 +138,36 @@ button {
 
 .panel {
   padding: 18px;
+}
+
+.auth-panel {
+  display: grid;
+  grid-template-columns: minmax(220px, 0.9fr) minmax(280px, 1.1fr);
+  gap: 18px;
+  align-items: start;
+  margin-bottom: 16px;
+}
+
+.auth-panel h2 {
+  margin: 0;
+}
+
+.auth-form {
+  display: grid;
+  gap: 12px;
+}
+
+.auth-actions {
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.auth-message {
+  min-height: 20px;
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.9rem;
+  font-weight: 700;
 }
 
 .compact-form,
@@ -418,6 +475,10 @@ textarea:focus {
   .topbar {
     align-items: stretch;
     flex-direction: column;
+  }
+
+  .auth-panel {
+    grid-template-columns: 1fr;
   }
 
   .item-form-grid {

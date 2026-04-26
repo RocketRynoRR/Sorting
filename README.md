@@ -11,7 +11,7 @@ A small static MVP for organizing home storage with QR-coded locations.
 - Search locations and items.
 - Export your saved inventory as JSON.
 
-Data is stored in the browser with `localStorage`.
+Data is stored in Supabase after sign-in, so it can sync across devices.
 
 ## GitHub Pages
 
@@ -32,4 +32,5 @@ The QR codes point back to `https://rocketrynorr.github.io/Sorting/` with a `#lo
 - Add import from exported JSON.
 - Add item photos.
 - Add printable sheets with multiple QR labels.
-- Add Supabase or Firebase when you want login, sync, and shared storage.
+- Add location editing.
+- Add shared household access.
