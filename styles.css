@@ -17,14 +17,14 @@
 
 body.dark-mode {
   color-scheme: dark;
-  --bg: #111719;
-  --surface: #1b2325;
-  --ink: #eef4f0;
-  --muted: #a7b4b1;
-  --line: #344144;
-  --accent: #55b8a6;
-  --accent-strong: #92e1d1;
-  --accent-soft: #183a35;
+  --bg: #111521;
+  --surface: #1a2030;
+  --ink: #eef3ff;
+  --muted: #aeb8cc;
+  --line: #343d52;
+  --accent: #7c8cff;
+  --accent-strong: #bec6ff;
+  --accent-soft: #242a49;
   --danger: #ff9a91;
   --danger-soft: #3e211f;
   --shadow: 0 16px 45px rgba(0, 0, 0, 0.3);
@@ -163,6 +163,12 @@ button:disabled {
 .add-grid {
   display: grid;
   gap: 16px;
+}
+
+.tag-list-scroll {
+  max-height: 260px;
+  overflow: auto;
+  padding-right: 4px;
 }
 
 .panel,
@@ -716,6 +722,46 @@ textarea:focus {
   border: 1px solid var(--line);
   border-radius: 8px;
   padding: 12px;
+}
+
+.item-photo-thumb {
+  width: 72px;
+  height: 72px;
+  object-fit: cover;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  margin-bottom: 8px;
+}
+
+.location-photo {
+  width: min(100%, 420px);
+  max-height: 260px;
+  object-fit: cover;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+
+.photo-action {
+  min-height: 42px;
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--surface);
+  color: var(--ink);
+  padding: 0 12px;
+  font-weight: 800;
+}
+
+.photo-action input {
+  display: none;
+}
+
+.mobile-move-controls {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+  margin-top: 10px;
 }
 
 .item-name-text {

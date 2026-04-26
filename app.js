@@ -45,6 +45,7 @@ const els = {
   syncStatus: document.querySelector("#syncStatus"),
   exportButton: document.querySelector("#exportButton"),
   searchInput: document.querySelector("#searchInput"),
+  searchToolbar: document.querySelector("#searchToolbar"),
   clearSearchButton: document.querySelector("#clearSearchButton"),
   mobileModeSelect: document.querySelector("#mobileModeSelect"),
   modePanel: document.querySelector("#modePanel"),
@@ -65,6 +66,7 @@ const els = {
   labelItemLimit: document.querySelector("#labelItemLimit"),
   labelLayout: document.querySelector("#labelLayout"),
   labelShowPlace: document.querySelector("#labelShowPlace"),
+  labelShowParent: document.querySelector("#labelShowParent"),
   labelShowCount: document.querySelector("#labelShowCount"),
   labelShowContents: document.querySelector("#labelShowContents"),
   labelShowUrl: document.querySelector("#labelShowUrl"),
@@ -277,7 +279,11 @@ function getCategoryOptions(selectedCategory = "") {
     return `<option value="${escapeHtml(name)}"${isSelected}>${escapeHtml(name)}</option>`;
   }).join("");
 
-  return options || `<option value="" disabled selected>Add category tags in Settings</option>`;
+  return `${options}<option value="__new__">Add new category...</option>` || `<option value="__new__">Add new category...</option>`;
+}
+
+function normalizeTagName(name) {
+  return name.trim().replace(/\s+/g, " ");
 }
 
 function setActiveLocation(locationId, updateHash = true) {
@@ -307,12 +313,48 @@ function createNode(tagName, className = "", text = "") {
   return node;
 }
 
+function readFileAsDataUrl(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}
+
+async function imageInputToData(input) {
+  const file = input?.files?.[0];
+  if (!file) return "";
+
+  const dataUrl = await readFileAsDataUrl(file);
+  return await compressImageDataUrl(dataUrl);
+}
+
+function compressImageDataUrl(dataUrl) {
+  return new Promise((resolve) => {
+    const image = new Image();
+    image.onload = () => {
+      const maxSize = 900;
+      const ratio = Math.min(1, maxSize / Math.max(image.width, image.height));
+      const canvas = document.createElement("canvas");
+      canvas.width = Math.max(1, Math.round(image.width * ratio));
+      canvas.height = Math.max(1, Math.round(image.height * ratio));
+      const ctx = canvas.getContext("2d");
+      ctx.drawImage(image, 0, 0, canvas.width, canvas.height);
+      resolve(canvas.toDataURL("image/jpeg", 0.72));
+    };
+    image.onerror = () => resolve(dataUrl);
+    image.src = dataUrl;
+  });
+}
+
 function getNumberInput(input, fallback) {
   const value = Number(input.value);
   return Number.isFinite(value) ? value : fallback;
 }
 
 function getLabelOptions() {
+  clampLabelControls();
   return {
     width: getNumberInput(els.labelWidth, 100),
     height: getNumberInput(els.labelHeight, 70),
@@ -322,10 +364,37 @@ function getLabelOptions() {
     itemLimit: getNumberInput(els.labelItemLimit, 8),
     layout: els.labelLayout.value,
     showPlace: els.labelShowPlace.checked,
+    showParent: els.labelShowParent.checked,
     showCount: els.labelShowCount.checked,
     showContents: els.labelShowContents.checked,
     showUrl: els.labelShowUrl.checked
   };
+}
+
+function clamp(value, min, max) {
+  return Math.min(Math.max(value, min), max);
+}
+
+function clampLabelControls() {
+  if (!els.labelWidth) return;
+
+  const width = clamp(getNumberInput(els.labelWidth, 100), 50, 200);
+  const height = clamp(getNumberInput(els.labelHeight, 70), 30, 140);
+  const maxQr = Math.max(18, Math.min(width, height) - 12);
+  const maxTitle = Math.max(12, Math.min(42, Math.floor(height * 0.7)));
+  const maxText = Math.max(8, Math.min(18, Math.floor(height * 0.28)));
+  const maxItems = Math.max(0, Math.min(12, Math.floor((height - 25) / 7)));
+
+  els.labelWidth.value = width;
+  els.labelHeight.value = height;
+  els.labelQrSize.max = maxQr;
+  els.labelQrSize.value = clamp(getNumberInput(els.labelQrSize, 38), 18, maxQr);
+  els.labelTitleSize.max = maxTitle;
+  els.labelTitleSize.value = clamp(getNumberInput(els.labelTitleSize, 24), 10, maxTitle);
+  els.labelTextSize.max = maxText;
+  els.labelTextSize.value = clamp(getNumberInput(els.labelTextSize, 11), 7, maxText);
+  els.labelItemLimit.max = maxItems;
+  els.labelItemLimit.value = clamp(getNumberInput(els.labelItemLimit, 8), 0, maxItems);
 }
 
 function applyLabelPreset(presetName) {
@@ -339,6 +408,7 @@ function applyLabelPreset(presetName) {
   els.labelTextSize.value = preset.textSize;
   els.labelItemLimit.value = preset.itemLimit;
   els.labelLayout.value = preset.layout;
+  clampLabelControls();
 }
 
 function openLabelDesigner(location) {
@@ -368,6 +438,7 @@ function renderLabelPreview() {
   const items = getLocationItems(location.id);
   const previewItems = options.showContents ? items.slice(0, Math.max(options.itemLimit, 0)) : [];
   const isQrOnly = options.layout === "qr-only";
+  const parent = getLocationById(location.parent_location_id);
   const scale = Math.min(1.6, 250 / Math.max(options.width, options.height));
   const label = createNode("div", `preview-label ${options.layout}`);
   label.style.width = `${options.width * scale}px`;
@@ -382,6 +453,7 @@ function renderLabelPreview() {
   if (!isQrOnly) {
     const body = createNode("div");
     if (options.showPlace) body.append(createNode("p", "eyebrow", location.area || "Storage"));
+    if (options.showParent && parent) body.append(createNode("p", "item-meta", `Parent: ${getLocationPath(parent)}`));
     const title = createNode("h3", "", location.name);
     title.style.fontSize = `${Math.max(options.titleSize * 0.8, 10)}px`;
     body.append(title);
@@ -434,9 +506,11 @@ function createLabel(location, options = getLabelOptions(), autoPrint = false) {
     ? previewItems.map((item) => `<li>${escapeHtml(item.name)} <span>Qty ${escapeHtml(item.quantity)}</span></li>`).join("")
     : "";
   const isQrOnly = options.layout === "qr-only";
+  const parent = getLocationById(location.parent_location_id);
   const layoutClass = isQrOnly ? "qr-only" : options.layout;
   const bodyWidth = Math.max(options.width - options.qrSize - 16, 25);
   const placeMarkup = options.showPlace && !isQrOnly ? `<p class="place">${escapeHtml(location.area || "Storage")}</p>` : "";
+  const parentMarkup = options.showParent && parent && !isQrOnly ? `<p class="parent">Parent Location: ${escapeHtml(getLocationPath(parent))}</p>` : "";
   const countMarkup = options.showCount && !isQrOnly ? `<p class="count">${items.length} item${items.length === 1 ? "" : "s"}</p>` : "";
   const contentsMarkup = options.showContents && !isQrOnly
     ? `<section class="contents"><h2>Contents</h2>${itemRows ? `<ul>${itemRows}</ul>` : "<p>No items added yet</p>"}${overflowCount > 0 ? `<p class="more">+ ${overflowCount} more item${overflowCount === 1 ? "" : "s"}</p>` : ""}</section>`
@@ -452,9 +526,10 @@ function createLabel(location, options = getLabelOptions(), autoPrint = false) {
         <title>${escapeHtml(location.name)} Label</title>
         <style>
           * { box-sizing: border-box; }
-          body { margin: 0; background: #f2f4ef; color: #11181a; font-family: Arial, Helvetica, sans-serif; }
-          .page { min-height: 100vh; display: grid; place-items: center; padding: 18px; }
-          .label { width: ${options.width}mm; min-height: ${options.height}mm; display: grid; gap: 4mm; border: 0.6mm solid #11181a; border-radius: 2mm; background: white; padding: 4mm; overflow: hidden; }
+          html, body { width: ${options.width}mm; height: ${options.height}mm; margin: 0; overflow: hidden; }
+          body { background: white; color: #11181a; font-family: Arial, Helvetica, sans-serif; }
+          .page { width: ${options.width}mm; height: ${options.height}mm; display: grid; place-items: center; overflow: hidden; }
+          .label { width: 100%; height: 100%; display: grid; gap: 3mm; border: 0.6mm solid #11181a; border-radius: 2mm; background: white; padding: 3mm; overflow: hidden; break-inside: avoid; page-break-inside: avoid; }
           .label.side { grid-template-columns: ${options.qrSize}mm minmax(${bodyWidth}mm, 1fr); align-items: start; }
           .label.stacked { grid-template-columns: 1fr; justify-items: center; text-align: center; }
           .label.qr-only { grid-template-columns: 1fr; place-items: center; width: ${options.width}mm; min-height: ${options.height}mm; }
@@ -463,6 +538,7 @@ function createLabel(location, options = getLabelOptions(), autoPrint = false) {
           .body { min-width: 0; }
           .url { max-width: 100%; overflow-wrap: anywhere; font-size: ${Math.max(options.textSize - 3, 6)}pt; color: #485254; }
           .place { margin: 0 0 1mm; color: #206f63; font-size: ${Math.max(options.textSize, 7)}pt; font-weight: 800; text-transform: uppercase; }
+          .parent { margin: 0 0 1mm; color: #485254; font-size: ${Math.max(options.textSize, 7)}pt; font-weight: 700; }
           h1 { margin: 0; font-size: ${options.titleSize}pt; line-height: 1.05; overflow-wrap: anywhere; }
           .count { margin: 2mm 0 3mm; font-size: ${Math.max(options.textSize + 2, 8)}pt; font-weight: 800; }
           h2 { margin: 0 0 1.5mm; font-size: ${Math.max(options.textSize - 1, 7)}pt; text-transform: uppercase; }
@@ -474,7 +550,7 @@ function createLabel(location, options = getLabelOptions(), autoPrint = false) {
           button { min-height: 42px; border: 1px solid #cfd7d0; border-radius: 6px; background: white; padding: 0 14px; font: inherit; font-weight: 800; cursor: pointer; }
           .print { background: #206f63; color: white; border-color: #206f63; }
           @page { size: ${options.width}mm ${options.height}mm; margin: 0; }
-          @media print { body { background: white; } .page { display: block; min-height: auto; padding: 0; } .label { border-radius: 0; box-shadow: none; } .actions { display: none; } }
+          @media print { html, body, .page { width: ${options.width}mm; height: ${options.height}mm; } body { background: white; } .page { padding: 0; break-inside: avoid; page-break-inside: avoid; } .label { border-radius: 0; box-shadow: none; break-inside: avoid; page-break-inside: avoid; } .actions { display: none; } }
         </style>
       </head>
       <body>
@@ -486,6 +562,7 @@ function createLabel(location, options = getLabelOptions(), autoPrint = false) {
             </div>
             ${isQrOnly ? "" : `<div class="body">
               ${placeMarkup}
+              ${parentMarkup}
               <h1>${escapeHtml(location.name)}</h1>
               ${countMarkup}
               ${contentsMarkup}
@@ -578,13 +655,14 @@ async function loadCloudData() {
   render();
 }
 
-async function createLocation(name, area, parentLocationId = "") {
+async function createLocation(name, area, parentLocationId = "", photoData = "") {
   const { data, error } = await supabaseClient
     .from("locations")
     .insert({
       name,
       area,
       parent_location_id: parentLocationId || null,
+      photo_data: photoData || null,
       user_id: state.user.id
     })
     .select()
@@ -616,6 +694,24 @@ async function updateLocation(locationId, updates) {
   }
 
   state.locations = state.locations.map((location) => location.id === locationId ? data : location);
+  setSyncStatus("Synced", true);
+  render();
+}
+
+async function updateItem(itemId, updates) {
+  const { data, error } = await supabaseClient
+    .from("items")
+    .update(updates)
+    .eq("id", itemId)
+    .select()
+    .single();
+
+  if (error) {
+    showError(error);
+    return;
+  }
+
+  state.items = state.items.map((item) => item.id === itemId ? data : item);
   setSyncStatus("Synced", true);
   render();
 }
@@ -696,8 +792,11 @@ async function updateDarkMode(enabled) {
 }
 
 async function createCategory(name) {
-  const cleanName = name.trim();
+  const cleanName = normalizeTagName(name);
   if (!cleanName) return;
+
+  const existing = state.categories.find((category) => category.name.toLowerCase() === cleanName.toLowerCase());
+  if (existing) return existing;
 
   const { data, error } = await supabaseClient
     .from("categories")
@@ -714,6 +813,7 @@ async function createCategory(name) {
   state.categories.sort((a, b) => a.name.localeCompare(b.name));
   setSyncStatus("Synced", true);
   render();
+  return data;
 }
 
 async function createDefaultCategories() {
@@ -799,13 +899,22 @@ async function shareRecord(type, record, recipientEmail) {
 }
 
 async function createItem(location, form) {
+  let category = form.querySelector(".item-category").value.trim();
+  if (category === "__new__") {
+    const entered = window.prompt("New category name");
+    const created = await createCategory(entered || "");
+    category = created?.name || "";
+  }
+
+  const photoData = await imageInputToData(form.querySelector(".item-photo"));
   const item = {
     location_id: location.id,
     user_id: state.user.id,
     name: form.querySelector(".item-name").value.trim(),
     quantity: Number(form.querySelector(".item-quantity").value) || 1,
-    category: form.querySelector(".item-category").value.trim(),
-    notes: form.querySelector(".item-notes").value.trim()
+    category,
+    notes: form.querySelector(".item-notes").value.trim(),
+    photo_data: photoData || null
   };
 
   if (!item.name) return;
@@ -944,6 +1053,12 @@ function renderLocationDetail(container) {
 
   area.textContent = location.area || "Storage location";
   title.textContent = getLocationPath(location);
+  if (location.photo_data) {
+    const photo = createNode("img", "location-photo");
+    photo.src = location.photo_data;
+    photo.alt = `${location.name} photo`;
+    content.querySelector(".detail-header").after(photo);
+  }
   qrImage.src = getQrUrl(location.id);
   qrImage.alt = `QR code for ${location.name}`;
   qrUrl.value = getLocationUrl(location.id);
@@ -959,10 +1074,16 @@ function renderLocationDetail(container) {
     row.className = "item-row";
     row.innerHTML = `
       <div>
+        ${item.photo_data ? `<img class="item-photo-thumb" src="${item.photo_data}" alt="">` : ""}
         <p class="item-name-text"></p>
         <p class="item-meta"></p>
       </div>
       <div class="edit-actions">
+        <label class="photo-action">
+          Photo
+          <input class="replace-item-photo" type="file" accept="image/*" capture="environment">
+        </label>
+        <button class="ghost-button remove-photo-button" type="button">Remove Photo</button>
         <button class="action-dot" type="button" aria-label="Share item">...</button>
         <button class="danger-button" type="button">Remove</button>
       </div>
@@ -974,6 +1095,12 @@ function renderLocationDetail(container) {
       item.notes
     ].filter(Boolean).join(" - ");
     row.querySelector(".action-dot").addEventListener("click", () => openShareDialog("item", item, item.name));
+    row.querySelector(".replace-item-photo").addEventListener("change", async (event) => {
+      const photoData = await imageInputToData(event.target);
+      if (photoData) await updateItem(item.id, { photo_data: photoData });
+    });
+    row.querySelector(".remove-photo-button").disabled = !item.photo_data || !isOwnRecord(item);
+    row.querySelector(".remove-photo-button").addEventListener("click", () => updateItem(item.id, { photo_data: null }));
     row.querySelector(".danger-button").disabled = !isOwnRecord(item);
     row.querySelector(".danger-button").addEventListener("click", () => deleteItem(item.id));
     itemsList.append(row);
@@ -1010,6 +1137,46 @@ function renderHome() {
 
 function renderAddMode() {
   const wrapper = createNode("section", "add-grid");
+  const resultsPanel = createNode("section", "panel");
+  const visibleLocations = getVisibleLocations();
+  const visibleItems = state.items.filter((item) => {
+    const location = getLocationById(item.location_id);
+    return location && matchesSearch(location, item);
+  });
+  resultsPanel.innerHTML = `
+    <div class="section-heading">
+      <h2>Search Results</h2>
+      <span class="count-pill">${visibleLocations.length + visibleItems.length}</span>
+    </div>
+    <div class="items-list tag-list-scroll"></div>
+  `;
+  const results = resultsPanel.querySelector(".items-list");
+  visibleLocations.slice(0, 10).forEach((location) => {
+    const row = createNode("article", "item-row");
+    row.innerHTML = `<div><p class="item-name-text"></p><p class="item-meta"></p></div><button class="ghost-button" type="button">Open</button>`;
+    row.querySelector(".item-name-text").textContent = getLocationPath(location);
+    row.querySelector(".item-meta").textContent = `Location - ${location.area || "Storage"}`;
+    row.querySelector("button").addEventListener("click", () => {
+      activeMode = "home";
+      setActiveLocation(location.id);
+    });
+    results.append(row);
+  });
+  visibleItems.slice(0, 10).forEach((item) => {
+    const location = getLocationById(item.location_id);
+    const row = createNode("article", "item-row");
+    row.innerHTML = `<div>${item.photo_data ? `<img class="item-photo-thumb" src="${item.photo_data}" alt="">` : ""}<p class="item-name-text"></p><p class="item-meta"></p></div><button class="ghost-button" type="button">Open Box</button>`;
+    row.querySelector(".item-name-text").textContent = item.name;
+    row.querySelector(".item-meta").textContent = `${item.category || "Item"} - ${location ? getLocationPath(location) : "Unknown location"}`;
+    row.querySelector("button").addEventListener("click", () => {
+      if (!location) return;
+      activeMode = "home";
+      setActiveLocation(location.id);
+    });
+    results.append(row);
+  });
+  if (!results.children.length) results.append(createNode("p", "item-meta", "No results yet."));
+
   const locationPanel = createNode("form", "panel compact-form");
   locationPanel.innerHTML = `
     <h2>Add Location</h2>
@@ -1025,6 +1192,10 @@ function renderAddMode() {
       Inside
       <select class="new-parent-location">${getLocationOptions()}</select>
     </label>
+    <label>
+      Location photo
+      <input class="new-location-photo" type="file" accept="image/*" capture="environment">
+    </label>
     <p class="muted-copy">Manage place tags in Settings.</p>
     <button class="primary-button" type="submit">Create Location</button>
   `;
@@ -1033,9 +1204,10 @@ function renderAddMode() {
     const name = locationPanel.querySelector(".new-location-name").value.trim();
     const area = locationPanel.querySelector(".new-location-area").value.trim();
     const parentLocationId = locationPanel.querySelector(".new-parent-location").value;
+    const photoData = await imageInputToData(locationPanel.querySelector(".new-location-photo"));
     if (!name) return;
     locationPanel.reset();
-    await createLocation(name, area, parentLocationId);
+    await createLocation(name, area, parentLocationId, photoData);
   });
 
   const itemPanel = createNode("form", "panel item-form");
@@ -1087,7 +1259,7 @@ function renderAddMode() {
     locationPanel.querySelector("button").disabled = true;
   }
 
-  wrapper.append(locationPanel, itemPanel);
+  wrapper.append(resultsPanel, locationPanel, itemPanel);
   els.modePanel.replaceChildren(wrapper);
 }
 
@@ -1115,10 +1287,16 @@ function renderEditMode() {
         Inside
         <select class="edit-parent">${getLocationOptions(location.parent_location_id || "", location.id)}</select>
       </label>
+      ${location.photo_data ? `<img class="location-photo" src="${location.photo_data}" alt="">` : ""}
+      <label>
+        Replace photo
+        <input class="edit-location-photo" type="file" accept="image/*" capture="environment">
+      </label>
       <div class="edit-actions">
         <button class="primary-button" type="submit">Save</button>
         <button class="action-dot share-button" type="button" aria-label="Share location">...</button>
         <button class="ghost-button label-button" type="button">Label</button>
+        <button class="ghost-button remove-photo-button" type="button">Remove Photo</button>
         <button class="danger-button delete-button" type="button">Delete</button>
       </div>
     `;
@@ -1128,15 +1306,19 @@ function renderEditMode() {
         setMessage("Shared locations are view-only.");
         return;
       }
+      const photoData = await imageInputToData(form.querySelector(".edit-location-photo"));
       await updateLocation(location.id, {
         name: form.querySelector(".edit-name").value.trim(),
         area: form.querySelector(".edit-area").value.trim(),
-        parent_location_id: form.querySelector(".edit-parent").value || null
+        parent_location_id: form.querySelector(".edit-parent").value || null,
+        ...(photoData ? { photo_data: photoData } : {})
       });
     });
     form.querySelector(".primary-button").disabled = !isOwnRecord(location);
     form.querySelector(".share-button").addEventListener("click", () => openShareDialog("location", location, location.name));
     form.querySelector(".label-button").addEventListener("click", () => openLabelDesigner(location));
+    form.querySelector(".remove-photo-button").disabled = !location.photo_data || !isOwnRecord(location);
+    form.querySelector(".remove-photo-button").addEventListener("click", () => updateLocation(location.id, { photo_data: null }));
     form.querySelector(".delete-button").disabled = !isOwnRecord(location);
     form.querySelector(".delete-button").addEventListener("click", () => deleteLocation(location));
     wrapper.append(form);
@@ -1191,6 +1373,10 @@ function renderMoveMode() {
       card.innerHTML = `
         <span class="move-item-name"></span>
         <span class="move-item-meta"></span>
+        <div class="mobile-move-controls">
+          <select class="move-destination">${getLocationOptions("", item.location_id)}</select>
+          <button class="ghost-button" type="button">Move</button>
+        </div>
       `;
       card.querySelector(".move-item-name").textContent = item.name;
       card.querySelector(".move-item-meta").textContent = [
@@ -1205,6 +1391,13 @@ function renderMoveMode() {
         event.dataTransfer.setData("text/plain", item.id);
       });
       card.addEventListener("dragend", () => card.classList.remove("dragging"));
+      card.querySelector("button").addEventListener("click", () => {
+        const destination = card.querySelector(".move-destination").value;
+        if (!destination) return;
+        if (window.confirm(`Move ${item.name}?`)) {
+          moveItem(item.id, destination);
+        }
+      });
       itemsContainer.append(card);
     });
 
@@ -1264,7 +1457,7 @@ function renderSettingsMode() {
       <h2>Saved Tags</h2>
       <span class="count-pill">${state.places.length}</span>
     </div>
-    <div class="items-list"></div>
+    <div class="items-list tag-list-scroll"></div>
   `;
   const list = listPanel.querySelector(".items-list");
 
@@ -1317,7 +1510,7 @@ function renderSettingsMode() {
       <h2>Saved Categories</h2>
       <span class="count-pill">${state.categories.length}</span>
     </div>
-    <div class="items-list"></div>
+    <div class="items-list tag-list-scroll"></div>
   `;
   const categoryList = categoryListPanel.querySelector(".items-list");
 
@@ -1348,6 +1541,7 @@ function renderSettingsMode() {
 function renderSharedMode() {
   const wrapper = createNode("section", "edit-grid");
   const sharedLocations = getVisibleLocations().filter((location) => !isOwnRecord(location));
+  const sharedItems = state.items.filter((item) => !isOwnRecord(item));
 
   sharedLocations.forEach((location) => {
     const card = createNode("article", "panel edit-card");
@@ -1372,9 +1566,46 @@ function renderSharedMode() {
     wrapper.append(card);
   });
 
-  if (!sharedLocations.length) {
+  sharedItems.forEach((item) => {
+    const location = state.locations.find((entry) => entry.id === item.location_id);
+    const card = createNode("article", "panel edit-card");
+    const photo = item.photo_data
+      ? `<img class="item-photo-thumb" src="${escapeHtml(item.photo_data)}" alt="">`
+      : "";
+    card.innerHTML = `
+      <div>
+        <p class="eyebrow">${escapeHtml(item.category || "Shared item")}</p>
+        <h2>${escapeHtml(item.name)}</h2>
+        <span class="shared-badge">Shared with you</span>
+      </div>
+      ${photo}
+      <p class="muted-copy">${escapeHtml([
+        `Qty ${item.quantity}`,
+        location ? getLocationPath(location) : "Location unavailable",
+        item.notes
+      ].filter(Boolean).join(" - "))}</p>
+      <div class="edit-actions">
+        ${location ? `<button class="ghost-button open-shared-button" type="button">Open Box</button>` : ""}
+        ${item.photo_data ? `<button class="ghost-button photo-preview-button" type="button">View Photo</button>` : ""}
+      </div>
+    `;
+    const openButton = card.querySelector(".open-shared-button");
+    if (openButton && location) {
+      openButton.addEventListener("click", () => {
+        activeMode = "home";
+        setActiveLocation(location.id);
+      });
+    }
+    const photoButton = card.querySelector(".photo-preview-button");
+    if (photoButton) {
+      photoButton.addEventListener("click", () => window.open(item.photo_data, "_blank", "noopener"));
+    }
+    wrapper.append(card);
+  });
+
+  if (!sharedLocations.length && !sharedItems.length) {
     const empty = createNode("div", "empty-state");
-    empty.innerHTML = `<div class="empty-mark">QR</div><h2>No shared locations yet</h2><p>Shared locations appear here after another user shares with your email.</p>`;
+    empty.innerHTML = `<div class="empty-mark">QR</div><h2>No shared items yet</h2><p>Shared locations and items appear here after another user shares with your email.</p>`;
     wrapper.append(empty);
   }
 
@@ -1430,6 +1661,9 @@ function render() {
   els.accountMenu.classList.toggle("hidden", !signedIn);
   els.accountButton.textContent = getAccountInitial();
   els.exportButton.disabled = !signedIn || !supabaseClient;
+  if (els.searchToolbar) {
+    els.searchToolbar.classList.toggle("hidden", !signedIn || activeMode !== "add");
+  }
 
   els.modeTabs.forEach((tab) => {
     tab.disabled = !supabaseClient;
@@ -1554,6 +1788,7 @@ els.labelPreset.addEventListener("change", () => {
 
 [
   els.labelShowPlace,
+  els.labelShowParent,
   els.labelShowCount,
   els.labelShowContents,
   els.labelShowUrl

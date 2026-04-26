@@ -66,7 +66,7 @@
 
         <nav class="mode-tabs" aria-label="Storage tools">
           <button class="mode-tab active" data-mode="home" type="button">Main Page</button>
-          <button class="mode-tab" data-mode="add" type="button">Add Locations</button>
+          <button class="mode-tab" data-mode="add" type="button">Search / Add</button>
           <button class="mode-tab" data-mode="edit" type="button">Edit Locations</button>
           <button class="mode-tab" data-mode="move" type="button">Move Items</button>
           <button class="mode-tab" data-mode="shared" type="button">Shared Locations</button>
@@ -75,14 +75,14 @@
           Menu
           <select id="mobileModeSelect" class="mobile-mode-select">
             <option value="home">Main Page</option>
-            <option value="add">Add Locations</option>
+            <option value="add">Search / Add</option>
             <option value="edit">Edit Locations</option>
             <option value="move">Move Items</option>
             <option value="shared">Shared Locations</option>
           </select>
         </label>
 
-        <div class="toolbar">
+        <div class="toolbar hidden" id="searchToolbar">
           <label class="search">
             <span>Search</span>
             <input id="searchInput" autocomplete="off" placeholder="Item, box, room, note">
@@ -116,27 +116,27 @@
           </label>
           <label>
             Width mm
-            <input id="labelWidth" type="number" min="35" max="300" value="100">
+            <input id="labelWidth" type="range" min="50" max="200" value="100">
           </label>
           <label>
             Height mm
-            <input id="labelHeight" type="number" min="25" max="210" value="70">
+            <input id="labelHeight" type="range" min="30" max="140" value="70">
           </label>
           <label>
             QR size mm
-            <input id="labelQrSize" type="number" min="18" max="160" value="38">
+            <input id="labelQrSize" type="range" min="18" max="80" value="38">
           </label>
           <label>
             Title size pt
-            <input id="labelTitleSize" type="number" min="10" max="72" value="24">
+            <input id="labelTitleSize" type="range" min="10" max="42" value="24">
           </label>
           <label>
             Text size pt
-            <input id="labelTextSize" type="number" min="7" max="28" value="11">
+            <input id="labelTextSize" type="range" min="7" max="18" value="11">
           </label>
           <label>
             Contents shown
-            <input id="labelItemLimit" type="number" min="0" max="30" value="8">
+            <input id="labelItemLimit" type="range" min="0" max="12" value="8">
           </label>
           <label>
             Layout
@@ -151,6 +151,7 @@
         <fieldset class="label-checks">
           <legend>Include</legend>
           <label><input id="labelShowPlace" type="checkbox" checked> Place</label>
+          <label><input id="labelShowParent" type="checkbox" checked> Parent location</label>
           <label><input id="labelShowCount" type="checkbox" checked> Item count</label>
           <label><input id="labelShowContents" type="checkbox" checked> Contents preview</label>
           <label><input id="labelShowUrl" type="checkbox"> URL text</label>
@@ -253,6 +254,10 @@
           <label>
             Notes
             <textarea class="item-notes" rows="3" placeholder="Black cable, 5m"></textarea>
+          </label>
+          <label>
+            Photo
+            <input class="item-photo" type="file" accept="image/*" capture="environment">
           </label>
           <button class="primary-button" type="submit">Add Item</button>
         </form>
