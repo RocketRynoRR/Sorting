@@ -49,6 +49,15 @@
       </section>
 
       <main class="dashboard hidden" id="dashboard">
+        <div class="toolbar search-bubble hidden" id="searchToolbar">
+          <label class="search">
+            <span>Search</span>
+            <input id="searchInput" autocomplete="off" placeholder="Find items, locations, categories">
+          </label>
+          <button class="ghost-button" id="clearSearchButton" type="button">Clear</button>
+          <div class="search-results hidden" id="searchResults"></div>
+        </div>
+
         <section class="summary-grid" aria-label="Storage summary">
           <article class="summary-card">
             <span>Locations</span>
@@ -81,15 +90,6 @@
             <option value="shared">Shared Locations</option>
           </select>
         </label>
-
-        <div class="toolbar search-bubble hidden" id="searchToolbar">
-          <label class="search">
-            <span>Search</span>
-            <input id="searchInput" autocomplete="off" placeholder="Find items, locations, categories">
-          </label>
-          <button class="ghost-button" id="clearSearchButton" type="button">Clear</button>
-          <div class="search-results hidden" id="searchResults"></div>
-        </div>
 
         <section class="mode-panel" id="modePanel"></section>
       </main>

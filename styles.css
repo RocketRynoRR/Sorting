@@ -536,13 +536,13 @@ button:disabled {
 
 .search-bubble {
   position: relative;
-  max-width: 620px;
-  margin: 0 auto 10px;
+  max-width: 760px;
+  margin: 0 auto 18px;
   border: 1px solid var(--line);
-  border-radius: 999px;
+  border-radius: 8px;
   background: var(--surface);
   box-shadow: var(--shadow);
-  padding: 10px;
+  padding: 12px;
 }
 
 .search-bubble .search {
@@ -550,11 +550,11 @@ button:disabled {
 }
 
 .search-bubble input {
-  border-radius: 999px;
+  border-radius: 6px;
 }
 
 .search-bubble .ghost-button {
-  border-radius: 999px;
+  border-radius: 6px;
 }
 
 .search-results {
