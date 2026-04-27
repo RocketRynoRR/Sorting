@@ -77,6 +77,7 @@ const els = {
   labelShowCount: document.querySelector("#labelShowCount"),
   labelShowContents: document.querySelector("#labelShowContents"),
   labelShowUrl: document.querySelector("#labelShowUrl"),
+  labelSizeReadout: document.querySelector("#labelSizeReadout"),
   labelPreview: document.querySelector("#labelPreview"),
   shareDialog: document.querySelector("#shareDialog"),
   shareForm: document.querySelector("#shareForm"),
@@ -702,6 +703,11 @@ function renderLabelPreview() {
   if (!location) return;
 
   const options = getLabelOptions();
+  if (els.labelSizeReadout) {
+    const labelWidth = Math.round(options.width * options.scale) / 100;
+    const labelHeight = Math.round(options.height * options.scale) / 100;
+    els.labelSizeReadout.textContent = `${labelWidth} mm x ${labelHeight} mm label on ${options.width} mm x ${options.height} mm page`;
+  }
   const items = getLocationItems(location.id);
   const previewItems = options.showContents ? items.slice(0, Math.max(options.itemLimit, 0)) : [];
   const overflowCount = Math.max(items.length - previewItems.length, 0);

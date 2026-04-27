@@ -400,6 +400,15 @@ button:disabled {
   padding: 16px;
 }
 
+.label-size-readout {
+  justify-self: stretch;
+  margin: 0 0 10px;
+  color: var(--muted);
+  font-size: 0.82rem;
+  font-weight: 800;
+  text-align: center;
+}
+
 .preview-label {
   display: grid;
   border-style: solid;
