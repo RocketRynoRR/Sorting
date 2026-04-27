@@ -402,12 +402,24 @@ button:disabled {
 
 .preview-label {
   display: grid;
-  gap: 8px;
-  border: 2px solid var(--ink);
-  border-radius: 8px;
-  background: var(--surface);
-  padding: 10px;
+  border-style: solid;
+  border-color: #11181a;
+  background: white;
+  color: #11181a;
+  overflow: hidden;
   transform-origin: center;
+}
+
+.preview-scale-box {
+  position: relative;
+  overflow: hidden;
+}
+
+.preview-page {
+  display: grid;
+  overflow: hidden;
+  background: white;
+  box-shadow: 0 8px 24px rgba(31, 42, 46, 0.18);
 }
 
 .preview-label.side {
@@ -422,20 +434,62 @@ button:disabled {
 
 .preview-qr {
   display: grid;
-  place-items: center;
-  border: 1px solid var(--line);
-  background: var(--surface);
-  color: var(--ink);
+  align-content: start;
+  justify-items: center;
+}
+
+.preview-qr img {
+  display: block;
+  border-style: solid;
+  border-color: #d8ddd7;
+}
+
+.preview-url {
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  color: #485254;
+}
+
+.preview-body {
+  min-width: 0;
+}
+
+.preview-place {
+  color: #206f63;
   font-weight: 900;
+  text-transform: uppercase;
+}
+
+.preview-parent {
+  color: #485254;
+  font-weight: 700;
+}
+
+.preview-count {
+  font-weight: 800;
+}
+
+.preview-contents h4 {
+  margin: 0;
+  text-transform: uppercase;
+}
+
+.preview-contents li span {
+  color: #5d686a;
+}
+
+.preview-more {
+  color: #5d686a;
+  font-weight: 700;
 }
 
 .preview-label h3,
-.preview-label p {
+.preview-label p,
+.preview-label ul {
   margin: 0;
 }
 
 .preview-label ul {
-  margin: 6px 0 0;
   padding-left: 18px;
 }
 

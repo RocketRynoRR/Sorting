@@ -692,42 +692,116 @@ function renderLabelPreview() {
   const options = getLabelOptions();
   const items = getLocationItems(location.id);
   const previewItems = options.showContents ? items.slice(0, Math.max(options.itemLimit, 0)) : [];
+  const overflowCount = Math.max(items.length - previewItems.length, 0);
   const isQrOnly = options.layout === "qr-only";
   const parent = getLocationById(location.parent_location_id);
-  const previewScale = Math.min(1.6, 250 / Math.max(options.width, options.height));
   const labelScale = options.scale / 100;
+  const labelWidth = options.width * labelScale;
+  const labelHeight = options.height * labelScale;
+  const scaledQr = options.qrSize * labelScale;
+  const scaledTitle = options.titleSize * labelScale;
+  const scaledText = options.textSize * labelScale;
+  const bodyWidth = Math.max(labelWidth - scaledQr - 16 * labelScale, 20);
+  const pxPerMm = 3.78;
+  const previewScale = Math.min(1.4, 310 / Math.max(options.width * pxPerMm, options.height * pxPerMm));
+  const previewBox = createNode("div", "preview-scale-box");
+  const page = createNode("div", "preview-page");
   const label = createNode("div", `preview-label ${options.layout}`);
-  label.style.width = `${options.width * previewScale * labelScale}px`;
-  label.style.minHeight = `${options.height * previewScale * labelScale}px`;
-  label.style.gridTemplateColumns = options.layout === "side" ? `${options.qrSize * previewScale * labelScale}px 1fr` : "";
-  label.style.justifySelf = options.alignX;
-  label.style.alignSelf = options.alignY;
 
-  const qr = createNode("div", "preview-qr", "QR");
-  qr.style.width = `${options.qrSize * previewScale * labelScale}px`;
-  qr.style.height = `${options.qrSize * previewScale * labelScale}px`;
+  previewBox.style.width = `${options.width * pxPerMm * previewScale}px`;
+  previewBox.style.height = `${options.height * pxPerMm * previewScale}px`;
+  page.style.width = `${options.width}mm`;
+  page.style.height = `${options.height}mm`;
+  page.style.justifyItems = options.alignX;
+  page.style.alignItems = options.alignY;
+  page.style.transform = `scale(${previewScale})`;
+  page.style.transformOrigin = "top left";
+
+  label.style.width = `${labelWidth}mm`;
+  label.style.height = `${labelHeight}mm`;
+  label.style.gap = `${3 * labelScale}mm`;
+  label.style.borderWidth = `${0.6 * labelScale}mm`;
+  label.style.borderRadius = `${2 * labelScale}mm`;
+  label.style.padding = `${3 * labelScale}mm`;
+  label.style.gridTemplateColumns = options.layout === "side" ? `${scaledQr}mm minmax(${bodyWidth}mm, 1fr)` : "";
+
+  const qr = createNode("div", "preview-qr");
+  qr.style.gap = `${2 * labelScale}mm`;
+  const qrImage = document.createElement("img");
+  qrImage.src = getQrUrl(location.id);
+  qrImage.alt = `QR code for ${location.name}`;
+  qrImage.style.width = `${scaledQr}mm`;
+  qrImage.style.height = `${scaledQr}mm`;
+  qrImage.style.borderWidth = `${0.25 * labelScale}mm`;
+  qr.append(qrImage);
+  if (options.showUrl) {
+    const url = createNode("div", "preview-url", getLocationUrl(location.id));
+    url.style.fontSize = `${Math.max(scaledText - 3, 5)}pt`;
+    qr.append(url);
+  }
   label.append(qr);
 
   if (!isQrOnly) {
-    const body = createNode("div");
-    if (options.showPlace) body.append(createNode("p", "eyebrow", location.area || "Storage"));
-    if (options.showParent && parent) body.append(createNode("p", "item-meta", `Parent: ${getLocationPath(parent)}`));
-    const title = createNode("h3", "", location.name);
-    title.style.fontSize = `${Math.max(options.titleSize * labelScale * 0.8, 10)}px`;
-    body.append(title);
-    if (options.showCount) body.append(createNode("p", "item-meta", `${items.length} item${items.length === 1 ? "" : "s"}`));
-    if (previewItems.length) {
-      const list = createNode("ul");
-      previewItems.forEach((item) => {
-        list.append(createNode("li", "", `${item.name} x${item.quantity}`));
-      });
-      body.append(list);
+    const body = createNode("div", "preview-body");
+    if (options.showPlace) {
+      const place = createNode("p", "preview-place", location.area || "Storage");
+      place.style.marginBottom = `${1 * labelScale}mm`;
+      place.style.fontSize = `${Math.max(scaledText, 6)}pt`;
+      body.append(place);
     }
-    if (options.showUrl) body.append(createNode("p", "item-meta", getLocationUrl(location.id)));
+    if (options.showParent && parent) {
+      const parentLine = createNode("p", "preview-parent", `Parent Location: ${getLocationPath(parent)}`);
+      parentLine.style.marginBottom = `${1 * labelScale}mm`;
+      parentLine.style.fontSize = `${Math.max(scaledText, 6)}pt`;
+      body.append(parentLine);
+    }
+    const title = createNode("h3", "", location.name);
+    title.style.fontSize = `${scaledTitle}pt`;
+    body.append(title);
+    if (options.showCount) {
+      const count = createNode("p", "preview-count", `${items.length} item${items.length === 1 ? "" : "s"}`);
+      count.style.margin = `${2 * labelScale}mm 0 ${3 * labelScale}mm`;
+      count.style.fontSize = `${Math.max(scaledText + 2, 7)}pt`;
+      body.append(count);
+    }
+    if (options.showContents) {
+      const contents = createNode("section", "preview-contents");
+      const heading = createNode("h4", "", "Contents");
+      heading.style.marginBottom = `${1.5 * labelScale}mm`;
+      heading.style.fontSize = `${Math.max(scaledText - 1, 6)}pt`;
+      contents.append(heading);
+      if (previewItems.length) {
+        const list = createNode("ul");
+        list.style.paddingLeft = `${20 * labelScale}px`;
+        contents.append(list);
+        previewItems.forEach((item) => {
+          const itemName = item.section ? `${item.section}: ${item.name}` : item.name;
+          const row = document.createElement("li");
+          row.style.margin = `${1 * labelScale}mm 0`;
+          row.style.fontSize = `${scaledText}pt`;
+          row.innerHTML = `${escapeHtml(itemName)} <span>Qty ${escapeHtml(item.quantity)}</span>`;
+          row.querySelector("span").style.fontSize = `${Math.max(scaledText - 1, 6)}pt`;
+          list.append(row);
+        });
+      } else {
+        const empty = createNode("p", "", "No items added yet");
+        empty.style.fontSize = `${scaledText}pt`;
+        contents.append(empty);
+      }
+      if (overflowCount > 0) {
+        const more = createNode("p", "preview-more", `+ ${overflowCount} more item${overflowCount === 1 ? "" : "s"}`);
+        more.style.marginTop = `${1.5 * labelScale}mm`;
+        more.style.fontSize = `${scaledText}pt`;
+        contents.append(more);
+      }
+      body.append(contents);
+    }
     label.append(body);
   }
 
-  els.labelPreview.replaceChildren(label);
+  page.append(label);
+  previewBox.append(page);
+  els.labelPreview.replaceChildren(previewBox);
 }
 
 function openShareDialog(type, record, title) {
