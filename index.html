@@ -142,11 +142,31 @@
             <input id="labelItemLimit" type="range" min="0" max="12" value="8">
           </label>
           <label>
+            Label scale %
+            <input id="labelScale" type="range" min="60" max="100" value="100">
+          </label>
+          <label>
             Layout
             <select id="labelLayout">
               <option value="side" selected>QR left</option>
               <option value="stacked">QR top</option>
               <option value="qr-only">QR only</option>
+            </select>
+          </label>
+          <label>
+            Horizontal align
+            <select id="labelAlignX">
+              <option value="start">Left</option>
+              <option value="center" selected>Center</option>
+              <option value="end">Right</option>
+            </select>
+          </label>
+          <label>
+            Vertical align
+            <select id="labelAlignY">
+              <option value="start">Top</option>
+              <option value="center" selected>Middle</option>
+              <option value="end">Bottom</option>
             </select>
           </label>
         </div>
@@ -206,7 +226,10 @@
             <h2>Locations</h2>
             <span class="count-pill" id="locationCount">0</span>
           </div>
-          <div class="location-list" id="locationList"></div>
+          <details class="location-picker-details">
+            <summary>Choose Location</summary>
+            <div class="location-list" id="locationList"></div>
+          </details>
         </div>
 
         <div class="location-detail" id="locationDetail"></div>

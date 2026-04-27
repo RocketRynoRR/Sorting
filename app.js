@@ -68,7 +68,10 @@ const els = {
   labelTitleSize: document.querySelector("#labelTitleSize"),
   labelTextSize: document.querySelector("#labelTextSize"),
   labelItemLimit: document.querySelector("#labelItemLimit"),
+  labelScale: document.querySelector("#labelScale"),
   labelLayout: document.querySelector("#labelLayout"),
+  labelAlignX: document.querySelector("#labelAlignX"),
+  labelAlignY: document.querySelector("#labelAlignY"),
   labelShowPlace: document.querySelector("#labelShowPlace"),
   labelShowParent: document.querySelector("#labelShowParent"),
   labelShowCount: document.querySelector("#labelShowCount"),
@@ -212,6 +215,40 @@ function getOrderedLocations(parentId = null, depth = 0) {
     { location, depth },
     ...getOrderedLocations(location.id, depth + 1)
   ]);
+}
+
+function getLocationDisplayPlace(location) {
+  let current = location;
+  const seen = new Set();
+
+  while (current && !seen.has(current.id)) {
+    if (current.area) return current.area;
+    seen.add(current.id);
+    current = getLocationById(current.parent_location_id);
+  }
+
+  return "No place";
+}
+
+function getPlaceHierarchyRows(placeName, visibleIdSet, searchActive) {
+  const belongsToPlace = (location) => getLocationDisplayPlace(location) === placeName;
+  const rows = [];
+
+  const addBranch = (location, depth) => {
+    if (!searchActive && depth > 0 && !expandedLocationIds.has(location.parent_location_id)) return;
+    if (searchActive && !visibleIdSet.has(location.id)) return;
+    rows.push({ location, depth });
+    sortLocationsByName(getChildLocations(location.id).filter(belongsToPlace))
+      .forEach((child) => addBranch(child, depth + 1));
+  };
+
+  sortLocationsByName(state.locations.filter((location) => {
+    if (!belongsToPlace(location)) return false;
+    const parent = getLocationById(location.parent_location_id);
+    return !parent || !belongsToPlace(parent);
+  })).forEach((location) => addBranch(location, 0));
+
+  return rows;
 }
 
 function getLocationOptions(selectedId = "", excludedId = "") {
@@ -563,15 +600,21 @@ function getNumberInput(input, fallback) {
 }
 
 function getLabelOptions() {
-  clampLabelControls();
+  updateLabelControlLimits();
+  const width = clamp(getNumberInput(els.labelWidth, 100), 50, 200);
+  const height = clamp(getNumberInput(els.labelHeight, 70), 30, 140);
+  const limits = getLabelLimits(width, height);
   return {
-    width: getNumberInput(els.labelWidth, 100),
-    height: getNumberInput(els.labelHeight, 70),
-    qrSize: getNumberInput(els.labelQrSize, 38),
-    titleSize: getNumberInput(els.labelTitleSize, 24),
-    textSize: getNumberInput(els.labelTextSize, 11),
-    itemLimit: getNumberInput(els.labelItemLimit, 8),
+    width,
+    height,
+    qrSize: clamp(getNumberInput(els.labelQrSize, 38), 18, limits.maxQr),
+    titleSize: clamp(getNumberInput(els.labelTitleSize, 24), 10, limits.maxTitle),
+    textSize: clamp(getNumberInput(els.labelTextSize, 11), 7, limits.maxText),
+    itemLimit: clamp(getNumberInput(els.labelItemLimit, 8), 0, limits.maxItems),
+    scale: clamp(getNumberInput(els.labelScale, 100), 60, 100),
     layout: els.labelLayout.value,
+    alignX: els.labelAlignX.value,
+    alignY: els.labelAlignY.value,
     showPlace: els.labelShowPlace.checked,
     showParent: els.labelShowParent.checked,
     showCount: els.labelShowCount.checked,
@@ -584,26 +627,26 @@ function clamp(value, min, max) {
   return Math.min(Math.max(value, min), max);
 }
 
-function clampLabelControls() {
+function getLabelLimits(width, height) {
+  return {
+    maxQr: Math.max(18, Math.min(width, height) - 12),
+    maxTitle: Math.max(12, Math.min(42, Math.floor(height * 0.7))),
+    maxText: Math.max(8, Math.min(18, Math.floor(height * 0.28))),
+    maxItems: Math.max(0, Math.min(12, Math.floor((height - 25) / 7)))
+  };
+}
+
+function updateLabelControlLimits() {
   if (!els.labelWidth) return;
 
   const width = clamp(getNumberInput(els.labelWidth, 100), 50, 200);
   const height = clamp(getNumberInput(els.labelHeight, 70), 30, 140);
-  const maxQr = Math.max(18, Math.min(width, height) - 12);
-  const maxTitle = Math.max(12, Math.min(42, Math.floor(height * 0.7)));
-  const maxText = Math.max(8, Math.min(18, Math.floor(height * 0.28)));
-  const maxItems = Math.max(0, Math.min(12, Math.floor((height - 25) / 7)));
+  const limits = getLabelLimits(width, height);
 
-  els.labelWidth.value = width;
-  els.labelHeight.value = height;
-  els.labelQrSize.max = maxQr;
-  els.labelQrSize.value = clamp(getNumberInput(els.labelQrSize, 38), 18, maxQr);
-  els.labelTitleSize.max = maxTitle;
-  els.labelTitleSize.value = clamp(getNumberInput(els.labelTitleSize, 24), 10, maxTitle);
-  els.labelTextSize.max = maxText;
-  els.labelTextSize.value = clamp(getNumberInput(els.labelTextSize, 11), 7, maxText);
-  els.labelItemLimit.max = maxItems;
-  els.labelItemLimit.value = clamp(getNumberInput(els.labelItemLimit, 8), 0, maxItems);
+  els.labelQrSize.max = limits.maxQr;
+  els.labelTitleSize.max = limits.maxTitle;
+  els.labelTextSize.max = limits.maxText;
+  els.labelItemLimit.max = limits.maxItems;
 }
 
 function applyLabelPreset(presetName) {
@@ -616,8 +659,11 @@ function applyLabelPreset(presetName) {
   els.labelTitleSize.value = preset.titleSize;
   els.labelTextSize.value = preset.textSize;
   els.labelItemLimit.value = preset.itemLimit;
+  els.labelScale.value = 100;
   els.labelLayout.value = preset.layout;
-  clampLabelControls();
+  els.labelAlignX.value = "center";
+  els.labelAlignY.value = "center";
+  updateLabelControlLimits();
 }
 
 function openLabelDesigner(location) {
@@ -648,15 +694,18 @@ function renderLabelPreview() {
   const previewItems = options.showContents ? items.slice(0, Math.max(options.itemLimit, 0)) : [];
   const isQrOnly = options.layout === "qr-only";
   const parent = getLocationById(location.parent_location_id);
-  const scale = Math.min(1.6, 250 / Math.max(options.width, options.height));
+  const previewScale = Math.min(1.6, 250 / Math.max(options.width, options.height));
+  const labelScale = options.scale / 100;
   const label = createNode("div", `preview-label ${options.layout}`);
-  label.style.width = `${options.width * scale}px`;
-  label.style.minHeight = `${options.height * scale}px`;
-  label.style.gridTemplateColumns = options.layout === "side" ? `${options.qrSize * scale}px 1fr` : "";
+  label.style.width = `${options.width * previewScale * labelScale}px`;
+  label.style.minHeight = `${options.height * previewScale * labelScale}px`;
+  label.style.gridTemplateColumns = options.layout === "side" ? `${options.qrSize * previewScale * labelScale}px 1fr` : "";
+  label.style.justifySelf = options.alignX;
+  label.style.alignSelf = options.alignY;
 
   const qr = createNode("div", "preview-qr", "QR");
-  qr.style.width = `${options.qrSize * scale}px`;
-  qr.style.height = `${options.qrSize * scale}px`;
+  qr.style.width = `${options.qrSize * previewScale * labelScale}px`;
+  qr.style.height = `${options.qrSize * previewScale * labelScale}px`;
   label.append(qr);
 
   if (!isQrOnly) {
@@ -664,7 +713,7 @@ function renderLabelPreview() {
     if (options.showPlace) body.append(createNode("p", "eyebrow", location.area || "Storage"));
     if (options.showParent && parent) body.append(createNode("p", "item-meta", `Parent: ${getLocationPath(parent)}`));
     const title = createNode("h3", "", location.name);
-    title.style.fontSize = `${Math.max(options.titleSize * 0.8, 10)}px`;
+    title.style.fontSize = `${Math.max(options.titleSize * labelScale * 0.8, 10)}px`;
     body.append(title);
     if (options.showCount) body.append(createNode("p", "item-meta", `${items.length} item${items.length === 1 ? "" : "s"}`));
     if (previewItems.length) {
@@ -717,7 +766,13 @@ function createLabel(location, options = getLabelOptions(), autoPrint = false) {
   const isQrOnly = options.layout === "qr-only";
   const parent = getLocationById(location.parent_location_id);
   const layoutClass = isQrOnly ? "qr-only" : options.layout;
-  const bodyWidth = Math.max(options.width - options.qrSize - 16, 25);
+  const labelScale = options.scale / 100;
+  const labelWidth = options.width * labelScale;
+  const labelHeight = options.height * labelScale;
+  const scaledQr = options.qrSize * labelScale;
+  const scaledTitle = options.titleSize * labelScale;
+  const scaledText = options.textSize * labelScale;
+  const bodyWidth = Math.max(labelWidth - scaledQr - 16 * labelScale, 20);
   const placeMarkup = options.showPlace && !isQrOnly ? `<p class="place">${escapeHtml(location.area || "Storage")}</p>` : "";
   const parentMarkup = options.showParent && parent && !isQrOnly ? `<p class="parent">Parent Location: ${escapeHtml(getLocationPath(parent))}</p>` : "";
   const countMarkup = options.showCount && !isQrOnly ? `<p class="count">${items.length} item${items.length === 1 ? "" : "s"}</p>` : "";
@@ -738,24 +793,24 @@ function createLabel(location, options = getLabelOptions(), autoPrint = false) {
           * { box-sizing: border-box; }
           html, body { margin: 0; min-width: ${options.width}mm; background: white; }
           body { color: #11181a; font-family: Arial, Helvetica, sans-serif; }
-          .page { width: ${options.width}mm; height: ${options.height}mm; display: grid; place-items: center; overflow: hidden; break-inside: avoid; page-break-inside: avoid; page-break-after: avoid; }
-          .label { width: 100%; height: 100%; max-width: 100%; max-height: 100%; display: grid; gap: 3mm; border: 0.6mm solid #11181a; border-radius: 2mm; background: white; padding: 3mm; overflow: hidden; break-inside: avoid; page-break-inside: avoid; }
-          .label.side { grid-template-columns: ${options.qrSize}mm minmax(${bodyWidth}mm, 1fr); align-items: start; }
+          .page { width: ${options.width}mm; height: ${options.height}mm; display: grid; justify-items: ${options.alignX}; align-items: ${options.alignY}; overflow: hidden; break-inside: avoid; page-break-inside: avoid; page-break-after: avoid; }
+          .label { width: ${labelWidth}mm; height: ${labelHeight}mm; max-width: 100%; max-height: 100%; display: grid; gap: ${3 * labelScale}mm; border: ${0.6 * labelScale}mm solid #11181a; border-radius: ${2 * labelScale}mm; background: white; padding: ${3 * labelScale}mm; overflow: hidden; break-inside: avoid; page-break-inside: avoid; }
+          .label.side { grid-template-columns: ${scaledQr}mm minmax(${bodyWidth}mm, 1fr); align-items: start; }
           .label.stacked { grid-template-columns: 1fr; justify-items: center; text-align: center; }
-          .label.qr-only { grid-template-columns: 1fr; place-items: center; width: ${options.width}mm; min-height: ${options.height}mm; }
-          .qr { display: grid; gap: 2mm; align-content: start; justify-items: center; }
-          .qr img { width: ${options.qrSize}mm; height: ${options.qrSize}mm; border: 0.25mm solid #d8ddd7; }
+          .label.qr-only { grid-template-columns: 1fr; place-items: center; }
+          .qr { display: grid; gap: ${2 * labelScale}mm; align-content: start; justify-items: center; }
+          .qr img { width: ${scaledQr}mm; height: ${scaledQr}mm; border: ${0.25 * labelScale}mm solid #d8ddd7; }
           .body { min-width: 0; }
-          .url { max-width: 100%; overflow-wrap: anywhere; font-size: ${Math.max(options.textSize - 3, 6)}pt; color: #485254; }
-          .place { margin: 0 0 1mm; color: #206f63; font-size: ${Math.max(options.textSize, 7)}pt; font-weight: 800; text-transform: uppercase; }
-          .parent { margin: 0 0 1mm; color: #485254; font-size: ${Math.max(options.textSize, 7)}pt; font-weight: 700; }
-          h1 { margin: 0; font-size: ${options.titleSize}pt; line-height: 1.05; overflow-wrap: anywhere; }
-          .count { margin: 2mm 0 3mm; font-size: ${Math.max(options.textSize + 2, 8)}pt; font-weight: 800; }
-          h2 { margin: 0 0 1.5mm; font-size: ${Math.max(options.textSize - 1, 7)}pt; text-transform: uppercase; }
-          ul { margin: 0; padding-left: 20px; }
-          li, .contents p { margin: 1mm 0; font-size: ${options.textSize}pt; }
-          li span { color: #5d686a; font-size: ${Math.max(options.textSize - 1, 7)}pt; }
-          .more { margin-top: 1.5mm; color: #5d686a; font-weight: 700; font-size: ${options.textSize}pt; }
+          .url { max-width: 100%; overflow-wrap: anywhere; font-size: ${Math.max(scaledText - 3, 5)}pt; color: #485254; }
+          .place { margin: 0 0 ${1 * labelScale}mm; color: #206f63; font-size: ${Math.max(scaledText, 6)}pt; font-weight: 800; text-transform: uppercase; }
+          .parent { margin: 0 0 ${1 * labelScale}mm; color: #485254; font-size: ${Math.max(scaledText, 6)}pt; font-weight: 700; }
+          h1 { margin: 0; font-size: ${scaledTitle}pt; line-height: 1.05; overflow-wrap: anywhere; }
+          .count { margin: ${2 * labelScale}mm 0 ${3 * labelScale}mm; font-size: ${Math.max(scaledText + 2, 7)}pt; font-weight: 800; }
+          h2 { margin: 0 0 ${1.5 * labelScale}mm; font-size: ${Math.max(scaledText - 1, 6)}pt; text-transform: uppercase; }
+          ul { margin: 0; padding-left: ${20 * labelScale}px; }
+          li, .contents p { margin: ${1 * labelScale}mm 0; font-size: ${scaledText}pt; }
+          li span { color: #5d686a; font-size: ${Math.max(scaledText - 1, 6)}pt; }
+          .more { margin-top: ${1.5 * labelScale}mm; color: #5d686a; font-weight: 700; font-size: ${scaledText}pt; }
           .actions { display: flex; gap: 10px; justify-content: center; margin-top: 18px; }
           button { min-height: 42px; border: 1px solid #cfd7d0; border-radius: 6px; background: white; padding: 0 14px; font: inherit; font-weight: 800; cursor: pointer; }
           .print { background: #206f63; color: white; border-color: #206f63; }
@@ -780,6 +835,8 @@ function createLabel(location, options = getLabelOptions(), autoPrint = false) {
             .label {
               border-radius: 0;
               box-shadow: none;
+              width: ${labelWidth}mm;
+              height: ${labelHeight}mm;
               break-inside: avoid;
               page-break-inside: avoid;
             }
@@ -1252,13 +1309,12 @@ function renderLocationList(container) {
       getLocationAncestors(location).forEach((ancestor) => visibleIdSet.add(ancestor.id));
     });
   }
-  const visibleLocations = getOrderedLocations().filter(({ location, depth }) => {
-    if (searchTerm) return visibleIdSet.has(location.id);
-    return depth === 0 || expandedLocationIds.has(location.parent_location_id);
-  });
+  const placeNames = [...new Set(state.locations.map(getLocationDisplayPlace))]
+    .sort((a, b) => a.localeCompare(b));
   container.replaceChildren();
 
-  visibleLocations.forEach(({ location, depth }) => {
+  let renderedCount = 0;
+  const renderLocationButton = ({ location, depth }) => {
     const items = getLocationItems(location.id);
     const childCount = getChildLocations(location.id).length;
     const isExpanded = expandedLocationIds.has(location.id);
@@ -1277,7 +1333,6 @@ function renderLocationList(container) {
     `;
     button.querySelector(".location-name").textContent = location.name;
     button.querySelector(".location-meta").textContent = [
-      location.area || "No area",
       location.parent_location_id ? `Inside ${getLocationById(location.parent_location_id)?.name || "Parent"}` : "",
       getLocationSections(location).length ? `${getLocationSections(location).length} section${getLocationSections(location).length === 1 ? "" : "s"}` : "",
       childCount ? `${childCount} nested location${childCount === 1 ? "" : "s"}` : ""
@@ -1293,9 +1348,20 @@ function renderLocationList(container) {
       setActiveLocation(location.id);
     });
     container.append(button);
+    renderedCount += 1;
+  };
+
+  placeNames.forEach((placeName) => {
+    const rows = getPlaceHierarchyRows(placeName, visibleIdSet, Boolean(searchTerm));
+    if (!rows.length) return;
+    const heading = createNode("div", "place-group-heading");
+    heading.innerHTML = `<span></span><strong>${rows.length}</strong>`;
+    heading.querySelector("span").textContent = placeName;
+    container.append(heading);
+    rows.forEach(renderLocationButton);
   });
 
-  if (!visibleLocations.length) {
+  if (!renderedCount) {
     container.append(createNode("p", "item-meta", searchTerm ? "No matching locations." : "No locations yet."));
   }
 }
@@ -2069,14 +2135,20 @@ els.labelPreset.addEventListener("change", () => {
     els.labelTitleSize,
     els.labelTextSize,
     els.labelItemLimit,
-    els.labelLayout
+    els.labelScale,
+    els.labelLayout,
+    els.labelAlignX,
+    els.labelAlignY
   ].filter(Boolean).forEach((control) => {
-    control.addEventListener("input", () => {
-    if (els.labelPreset.value !== "custom") {
-      els.labelPreset.value = "custom";
-    }
-    renderLabelPreview();
-  });
+    const update = () => {
+      if (els.labelPreset.value !== "custom") {
+        els.labelPreset.value = "custom";
+      }
+      updateLabelControlLimits();
+      renderLabelPreview();
+    };
+    control.addEventListener("input", update);
+    control.addEventListener("change", update);
 });
 
 [

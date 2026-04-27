@@ -390,7 +390,8 @@ button:disabled {
 
 .label-live-preview {
   display: grid;
-  place-items: center;
+  align-items: center;
+  justify-items: center;
   min-height: 220px;
   border: 1px dashed #b8c4bd;
   border-radius: 8px;
@@ -764,6 +765,58 @@ textarea:focus {
   padding: 12px;
   padding-left: calc(12px + (var(--location-depth, 0) * 18px));
   text-align: left;
+}
+
+.location-picker-details {
+  display: grid;
+  gap: 12px;
+}
+
+.location-picker-details summary {
+  min-height: 46px;
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--accent);
+  color: white;
+  cursor: pointer;
+  font-weight: 850;
+  list-style: none;
+}
+
+.location-picker-details summary::-webkit-details-marker {
+  display: none;
+}
+
+.location-picker-details[open] summary {
+  margin-bottom: 12px;
+  background: var(--accent-soft);
+  color: var(--accent-strong);
+}
+
+.place-group-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin: 14px 0 8px;
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--surface);
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.place-group-heading:first-child {
+  margin-top: 0;
+}
+
+.place-group-heading strong {
+  color: var(--accent-strong);
 }
 
 .tree-toggle {
