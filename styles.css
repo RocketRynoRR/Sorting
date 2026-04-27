@@ -47,12 +47,20 @@ body {
 button,
 input,
 select,
-textarea {
+textarea,
+.dashboard-link {
   font: inherit;
 }
 
 button {
   cursor: pointer;
+}
+
+.dashboard-link {
+  min-height: 42px;
+  display: inline-grid;
+  place-items: center;
+  text-decoration: none;
 }
 
 button:disabled {
