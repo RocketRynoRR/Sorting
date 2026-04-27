@@ -899,10 +899,16 @@ function createLabel(location, options = getLabelOptions(), autoPrint = false) {
         <style>
           @page { size: ${options.width}mm ${options.height}mm; margin: 0; }
           * { box-sizing: border-box; }
-          html, body { margin: 0; min-width: ${options.width}mm; background: white; }
-          body { color: #11181a; font-family: Arial, Helvetica, sans-serif; }
+          html, body { margin: 0; min-width: ${options.width}mm; min-height: 100vh; background: #f4f6f8; }
+          body { color: #11181a; font-family: Arial, Helvetica, sans-serif; display: grid; place-items: start center; padding: 28px; }
+          .preview-shell { width: min(100%, 860px); display: grid; gap: 18px; }
+          .preview-header { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+          .preview-header h1 { margin: 0; font-size: 22px; line-height: 1.1; }
+          .preview-header p { margin: 5px 0 0; color: #5d686a; font-size: 13px; font-weight: 700; }
+          .preview-card { display: grid; place-items: center; min-height: 360px; border: 1px solid #d7dee1; border-radius: 12px; background: white; box-shadow: 0 18px 45px rgba(17, 24, 26, 0.12); padding: 24px; overflow: auto; }
+          .preview-page-wrap { display: inline-grid; background: #f8fafb; padding: 18px; border: 1px dashed #b8c4bd; border-radius: 10px; }
           .page { width: ${options.width}mm; height: ${options.height}mm; display: grid; justify-content: ${justify}; align-content: ${align}; overflow: hidden; break-inside: avoid; page-break-inside: avoid; page-break-after: avoid; }
-          .label { width: ${labelWidth}mm; height: ${labelHeight}mm; max-width: 100%; max-height: 100%; display: grid; gap: ${3 * labelScale}mm; border: ${0.6 * labelScale}mm solid #11181a; border-radius: ${2 * labelScale}mm; background: white; padding: ${3 * labelScale}mm; overflow: hidden; break-inside: avoid; page-break-inside: avoid; align-items: ${align}; justify-items: ${justify}; align-content: ${align}; text-align: ${textAlign}; }
+          .label { width: ${labelWidth}mm; height: ${labelHeight}mm; max-width: 100%; max-height: 100%; display: grid; gap: ${3 * labelScale}mm; border: ${0.6 * labelScale}mm solid #11181a; border-radius: ${2 * labelScale}mm; background: white; padding: ${3 * labelScale}mm; overflow: hidden; break-inside: avoid; page-break-inside: avoid; align-items: ${align}; justify-items: ${justify}; align-content: ${align}; text-align: ${textAlign}; box-shadow: 0 8px 22px rgba(17, 24, 26, 0.12); }
           .label.side { grid-template-columns: ${scaledQr}mm minmax(${bodyWidth}mm, 1fr); }
           .label.side .qr { justify-self: start; }
           .label.side .body { justify-self: ${justify}; text-align: ${textAlign}; }
@@ -921,17 +927,34 @@ function createLabel(location, options = getLabelOptions(), autoPrint = false) {
           li, .contents p { margin: ${1 * labelScale}mm 0; font-size: ${scaledText}pt; }
           li span { color: #5d686a; font-size: ${Math.max(scaledText - 1, 6)}pt; }
           .more { margin-top: ${1.5 * labelScale}mm; color: #5d686a; font-weight: 700; font-size: ${scaledText}pt; }
-          .actions { display: flex; gap: 10px; justify-content: center; margin-top: 18px; }
-          button { min-height: 42px; border: 1px solid #cfd7d0; border-radius: 6px; background: white; padding: 0 14px; font: inherit; font-weight: 800; cursor: pointer; }
+          .actions { display: flex; gap: 10px; justify-content: flex-end; flex-wrap: wrap; }
+          button { min-height: 42px; border: 1px solid #cfd7d0; border-radius: 8px; background: white; padding: 0 16px; font: inherit; font-weight: 800; cursor: pointer; }
           .print { background: #206f63; color: white; border-color: #206f63; }
           @media print {
             html, body {
               width: ${options.width}mm;
               height: ${options.height}mm;
               min-width: 0;
+              min-height: 0;
               overflow: hidden;
             }
-            body { background: white; }
+            body { display: block; padding: 0; background: white; }
+            .preview-shell,
+            .preview-card,
+            .preview-page-wrap {
+              display: block;
+              width: ${options.width}mm;
+              height: ${options.height}mm;
+              min-height: 0;
+              padding: 0;
+              border: 0;
+              border-radius: 0;
+              box-shadow: none;
+              background: white;
+              overflow: hidden;
+            }
+            .preview-header,
+            .actions { display: none !important; }
             .page {
               width: ${options.width}mm;
               height: ${options.height}mm;
@@ -950,29 +973,40 @@ function createLabel(location, options = getLabelOptions(), autoPrint = false) {
               break-inside: avoid;
               page-break-inside: avoid;
             }
-            .actions { display: none !important; }
           }
         </style>
       </head>
       <body>
-        <main class="page">
-          <section class="label ${layoutClass}" aria-label="Storage label">
-            <div class="qr">
-              <img src="${getQrUrl(location.id)}" alt="QR code for ${escapeHtml(location.name)}">
-              ${urlMarkup}
+        <div class="preview-shell">
+          <header class="preview-header">
+            <div>
+              <h1>${escapeHtml(location.name)} Label</h1>
+              <p>${labelWidth.toFixed(1)} mm x ${labelHeight.toFixed(1)} mm label on ${options.width} mm x ${options.height} mm page</p>
             </div>
-            ${isQrOnly ? "" : `<div class="body">
-              ${placeMarkup}
-              ${parentMarkup}
-              <h1>${escapeHtml(location.name)}</h1>
-              ${countMarkup}
-              ${contentsMarkup}
-            </div>`}
+            <div class="actions">
+              <button class="print" onclick="window.print()">Print Label</button>
+              <button onclick="window.close()">Close</button>
+            </div>
+          </header>
+          <section class="preview-card">
+            <div class="preview-page-wrap">
+              <main class="page">
+                <section class="label ${layoutClass}" aria-label="Storage label">
+                  <div class="qr">
+                    <img src="${getQrUrl(location.id)}" alt="QR code for ${escapeHtml(location.name)}">
+                    ${urlMarkup}
+                  </div>
+                  ${isQrOnly ? "" : `<div class="body">
+                    ${placeMarkup}
+                    ${parentMarkup}
+                    <h1>${escapeHtml(location.name)}</h1>
+                    ${countMarkup}
+                    ${contentsMarkup}
+                  </div>`}
+                </section>
+              </main>
+            </div>
           </section>
-        </main>
-        <div class="actions">
-          <button class="print" onclick="window.print()">Print Label</button>
-          <button onclick="window.close()">Close</button>
         </div>
       </body>
     </html>
