@@ -422,16 +422,6 @@ button:disabled {
   box-shadow: 0 8px 24px rgba(31, 42, 46, 0.18);
 }
 
-.preview-label.side {
-  grid-template-columns: auto 1fr;
-}
-
-.preview-label.stacked,
-.preview-label.qr-only {
-  justify-items: center;
-  text-align: center;
-}
-
 .preview-qr {
   display: grid;
   align-content: start;

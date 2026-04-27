@@ -631,6 +631,14 @@ function cssTextAlign(alignX) {
   return { start: "left", center: "center", end: "right" }[alignX] || "center";
 }
 
+function cssJustify(alignX) {
+  return { start: "start", center: "center", end: "end" }[alignX] || "center";
+}
+
+function cssAlign(alignY) {
+  return { start: "start", center: "center", end: "end" }[alignY] || "center";
+}
+
 function getLabelLimits(width, height) {
   return {
     maxQr: Math.max(18, Math.min(width, height) - 12),
@@ -712,13 +720,15 @@ function renderLabelPreview() {
   const page = createNode("div", "preview-page");
   const label = createNode("div", `preview-label ${options.layout}`);
   const textAlign = cssTextAlign(options.alignX);
+  const justify = cssJustify(options.alignX);
+  const align = cssAlign(options.alignY);
 
   previewBox.style.width = `${options.width * pxPerMm * previewScale}px`;
   previewBox.style.height = `${options.height * pxPerMm * previewScale}px`;
   page.style.width = `${options.width}mm`;
   page.style.height = `${options.height}mm`;
-  page.style.justifyItems = options.alignX;
-  page.style.alignItems = options.alignY;
+  page.style.justifyContent = justify;
+  page.style.alignContent = align;
   page.style.transform = `scale(${previewScale})`;
   page.style.transformOrigin = "top left";
 
@@ -728,15 +738,18 @@ function renderLabelPreview() {
   label.style.borderWidth = `${0.6 * labelScale}mm`;
   label.style.borderRadius = `${2 * labelScale}mm`;
   label.style.padding = `${3 * labelScale}mm`;
-  label.style.alignItems = options.alignY;
-  label.style.justifyItems = options.alignX;
+  label.style.alignItems = align;
+  label.style.justifyItems = justify;
   label.style.textAlign = textAlign;
   label.style.gridTemplateColumns = options.layout === "side" ? `${scaledQr}mm minmax(${bodyWidth}mm, 1fr)` : "1fr";
-  label.style.alignContent = options.alignY;
+  label.style.alignContent = align;
+  label.dataset.layout = options.layout;
+  label.dataset.alignX = options.alignX;
+  label.dataset.alignY = options.alignY;
 
   const qr = createNode("div", "preview-qr");
   qr.style.gap = `${2 * labelScale}mm`;
-  qr.style.justifySelf = options.layout === "side" ? "start" : options.alignX;
+  qr.style.justifySelf = options.layout === "side" ? "start" : justify;
   const qrImage = document.createElement("img");
   qrImage.src = getQrUrl(location.id);
   qrImage.alt = `QR code for ${location.name}`;
@@ -753,7 +766,7 @@ function renderLabelPreview() {
 
   if (!isQrOnly) {
     const body = createNode("div", "preview-body");
-    body.style.justifySelf = options.layout === "side" ? options.alignX : "stretch";
+    body.style.justifySelf = options.layout === "side" ? justify : "stretch";
     body.style.textAlign = textAlign;
     if (options.showPlace) {
       const place = createNode("p", "preview-place", location.area || "Storage");
@@ -860,6 +873,8 @@ function createLabel(location, options = getLabelOptions(), autoPrint = false) {
   const scaledText = options.textSize * labelScale;
   const bodyWidth = Math.max(labelWidth - scaledQr - 16 * labelScale, 20);
   const textAlign = cssTextAlign(options.alignX);
+  const justify = cssJustify(options.alignX);
+  const align = cssAlign(options.alignY);
   const placeMarkup = options.showPlace && !isQrOnly ? `<p class="place">${escapeHtml(location.area || "Storage")}</p>` : "";
   const parentMarkup = options.showParent && parent && !isQrOnly ? `<p class="parent">Parent Location: ${escapeHtml(getLocationPath(parent))}</p>` : "";
   const countMarkup = options.showCount && !isQrOnly ? `<p class="count">${items.length} item${items.length === 1 ? "" : "s"}</p>` : "";
@@ -880,11 +895,11 @@ function createLabel(location, options = getLabelOptions(), autoPrint = false) {
           * { box-sizing: border-box; }
           html, body { margin: 0; min-width: ${options.width}mm; background: white; }
           body { color: #11181a; font-family: Arial, Helvetica, sans-serif; }
-          .page { width: ${options.width}mm; height: ${options.height}mm; display: grid; justify-items: ${options.alignX}; align-items: ${options.alignY}; overflow: hidden; break-inside: avoid; page-break-inside: avoid; page-break-after: avoid; }
-          .label { width: ${labelWidth}mm; height: ${labelHeight}mm; max-width: 100%; max-height: 100%; display: grid; gap: ${3 * labelScale}mm; border: ${0.6 * labelScale}mm solid #11181a; border-radius: ${2 * labelScale}mm; background: white; padding: ${3 * labelScale}mm; overflow: hidden; break-inside: avoid; page-break-inside: avoid; align-items: ${options.alignY}; justify-items: ${options.alignX}; align-content: ${options.alignY}; text-align: ${textAlign}; }
+          .page { width: ${options.width}mm; height: ${options.height}mm; display: grid; justify-content: ${justify}; align-content: ${align}; overflow: hidden; break-inside: avoid; page-break-inside: avoid; page-break-after: avoid; }
+          .label { width: ${labelWidth}mm; height: ${labelHeight}mm; max-width: 100%; max-height: 100%; display: grid; gap: ${3 * labelScale}mm; border: ${0.6 * labelScale}mm solid #11181a; border-radius: ${2 * labelScale}mm; background: white; padding: ${3 * labelScale}mm; overflow: hidden; break-inside: avoid; page-break-inside: avoid; align-items: ${align}; justify-items: ${justify}; align-content: ${align}; text-align: ${textAlign}; }
           .label.side { grid-template-columns: ${scaledQr}mm minmax(${bodyWidth}mm, 1fr); }
           .label.side .qr { justify-self: start; }
-          .label.side .body { justify-self: ${options.alignX}; text-align: ${textAlign}; }
+          .label.side .body { justify-self: ${justify}; text-align: ${textAlign}; }
           .label.stacked { grid-template-columns: 1fr; }
           .label.qr-only { grid-template-columns: 1fr; place-items: center; }
           .qr { display: grid; gap: ${2 * labelScale}mm; align-content: start; justify-items: center; }
@@ -2214,6 +2229,24 @@ els.searchToggleButton?.addEventListener("click", () => {
 if (els.labelPreset) {
 els.labelPreset.addEventListener("change", () => {
   applyLabelPreset(els.labelPreset.value);
+  renderLabelPreview();
+});
+
+els.labelDesignerForm?.addEventListener("input", (event) => {
+  if (!event.target.closest(".label-control-grid, .label-checks")) return;
+  if (els.labelPreset.value !== "custom" && event.target !== els.labelPreset) {
+    els.labelPreset.value = "custom";
+  }
+  updateLabelControlLimits();
+  renderLabelPreview();
+});
+
+els.labelDesignerForm?.addEventListener("change", (event) => {
+  if (!event.target.closest(".label-control-grid, .label-checks")) return;
+  if (els.labelPreset.value !== "custom" && event.target !== els.labelPreset) {
+    els.labelPreset.value = "custom";
+  }
+  updateLabelControlLimits();
   renderLabelPreview();
 });
 
