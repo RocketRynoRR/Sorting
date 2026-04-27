@@ -61,6 +61,7 @@ button {
   display: inline-grid;
   place-items: center;
   text-decoration: none;
+  justify-self: start;
 }
 
 button:disabled {
@@ -97,26 +98,39 @@ button:disabled {
 }
 
 .topbar {
+  display: grid;
+  grid-template-columns: minmax(150px, 1fr) minmax(260px, auto) minmax(150px, 1fr);
   align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-  padding: 10px 0 22px;
+  gap: 18px;
+  margin: -24px calc(50% - 50vw) 18px;
+  padding: 18px max(24px, calc((100vw - 1220px) / 2 + 24px));
+  border-bottom: 1px solid var(--line);
+  background: #070b17;
 }
 
 .auth-only .topbar {
-  justify-content: center;
+  grid-template-columns: 1fr;
   text-align: center;
-  padding-bottom: 24px;
 }
 
 .auth-only .topbar-actions {
   display: none;
 }
 
+.auth-only .dashboard-link,
+.auth-only .search-bubble {
+  display: none !important;
+}
+
 .topbar-actions {
+  justify-self: end;
   align-items: center;
   gap: 10px;
   flex-wrap: wrap;
+}
+
+.topbar-title {
+  text-align: center;
 }
 
 .topbar h1,
@@ -129,8 +143,8 @@ button:disabled {
 }
 
 .topbar h1 {
-  font-size: clamp(2rem, 3vw, 3.5rem);
-  line-height: 1;
+  font-size: clamp(1.35rem, 2vw, 1.95rem);
+  line-height: 1.05;
 }
 
 .eyebrow {
@@ -557,6 +571,10 @@ button:disabled {
   align-items: end;
 }
 
+.topbar .search-bubble {
+  display: none !important;
+}
+
 .search-bubble .search {
   min-width: 0;
   text-align: center;
@@ -579,7 +597,7 @@ button:disabled {
 .search-icon-button {
   width: 44px;
   height: 44px;
-  display: none;
+  display: grid;
   place-items: center;
   border: 1px solid var(--line);
   border-radius: 8px;
@@ -1043,10 +1061,34 @@ textarea:focus {
   }
 
   .toolbar,
-  .detail-header,
-  .topbar {
+  .detail-header {
     align-items: stretch;
     flex-direction: column;
+  }
+
+  .topbar {
+    grid-template-columns: 1fr auto;
+    align-items: center;
+    gap: 12px;
+    padding: 14px 16px;
+  }
+
+  .topbar-title {
+    grid-column: 1 / -1;
+    grid-row: 1;
+    text-align: center;
+  }
+
+  .dashboard-link {
+    grid-column: 1;
+    grid-row: 2;
+  }
+
+  .topbar-actions {
+    grid-column: 2;
+    grid-row: 2;
+    width: auto;
+    justify-self: end;
   }
 
   .search-bubble {
@@ -1096,10 +1138,19 @@ textarea:focus {
     width: 100%;
   }
 
+  .topbar-actions {
+    width: auto;
+  }
+
   .detail-actions button,
   .toolbar button,
   .topbar-actions button {
     flex: 1;
+  }
+
+  .topbar-actions button,
+  .topbar-actions .dashboard-link {
+    flex: 0 0 auto;
   }
 
   .topbar-actions .search-icon-button {
