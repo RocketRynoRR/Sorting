@@ -825,7 +825,8 @@ textarea:focus {
   gap: 12px;
 }
 
-.location-picker-details summary {
+.location-picker-toggle {
+  width: 100%;
   min-height: 46px;
   display: grid;
   place-items: center;
@@ -835,14 +836,9 @@ textarea:focus {
   color: white;
   cursor: pointer;
   font-weight: 850;
-  list-style: none;
 }
 
-.location-picker-details summary::-webkit-details-marker {
-  display: none;
-}
-
-.location-picker-details[open] summary {
+.location-picker-toggle.open {
   margin-bottom: 12px;
   background: var(--accent-soft);
   color: var(--accent-strong);

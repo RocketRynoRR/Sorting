@@ -1614,14 +1614,18 @@ function renderLocationDetail(container) {
 function renderHome() {
   const content = els.homeTemplate.content.cloneNode(true);
   content.querySelector("#locationCount").textContent = getVisibleLocations().length;
-  const picker = content.querySelector(".location-picker-details");
-  if (picker) {
-    picker.open = locationPickerOpen;
-    picker.addEventListener("toggle", () => {
-      locationPickerOpen = picker.open;
+  const pickerToggle = content.querySelector("#locationPickerToggle");
+  const locationList = content.querySelector("#locationList");
+  if (pickerToggle && locationList) {
+    pickerToggle.classList.toggle("open", locationPickerOpen);
+    pickerToggle.textContent = locationPickerOpen ? "Hide Locations" : "Choose Location";
+    locationList.classList.toggle("hidden", !locationPickerOpen);
+    pickerToggle.addEventListener("click", () => {
+      locationPickerOpen = !locationPickerOpen;
+      render();
     });
   }
-  renderLocationList(content.querySelector("#locationList"));
+  renderLocationList(locationList);
   renderLocationDetail(content.querySelector("#locationDetail"));
   els.modePanel.replaceChildren(content);
 }
