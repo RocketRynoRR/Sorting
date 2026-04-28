@@ -1,5 +1,5 @@
-const SUPABASE_URL = "https://txdkcgotbeghwzlhcrzf.supabase.co";
-const SUPABASE_PUBLISHABLE_KEY = "sb_publishable_32jx4KbrFRdjkxSRUGN76A_pTrETJx0";
+const SUPABASE_URL = "https://gkbpvvhfyarxkjykafun.supabase.co";
+const SUPABASE_PUBLISHABLE_KEY = "sb_publishable_Jy8tz3rrDNIx8CLsoC27FQ_EBRjJvNb";
 const SITE_BASE_URL = "https://rocketrynorr.github.io/Sorting/";
 
 const supabaseClient = window.supabase
@@ -45,6 +45,8 @@ const els = {
   signUpButton: document.querySelector("#signUpButton"),
   signOutButton: document.querySelector("#signOutButton"),
   syncStatus: document.querySelector("#syncStatus"),
+  importButton: document.querySelector("#importButton"),
+  importFile: document.querySelector("#importFile"),
   exportButton: document.querySelector("#exportButton"),
   searchToggleButton: document.querySelector("#searchToggleButton"),
   searchInput: document.querySelector("#searchInput"),
@@ -1050,11 +1052,11 @@ async function loadCloudData() {
     { data: categories, error: categoriesError },
     { data: settings, error: settingsError }
   ] = await Promise.all([
-    supabaseClient.from("locations").select("*").order("created_at", { ascending: false }),
-    supabaseClient.from("items").select("*").order("created_at", { ascending: false }),
-    supabaseClient.from("places").select("*").order("name", { ascending: true }),
-    supabaseClient.from("categories").select("*").order("name", { ascending: true }),
-    supabaseClient.from("user_settings").select("*").eq("user_id", state.user.id).maybeSingle()
+    supabaseClient.from("qr_locations").select("*").order("created_at", { ascending: false }),
+    supabaseClient.from("qr_items").select("*").order("created_at", { ascending: false }),
+    supabaseClient.from("qr_places").select("*").order("name", { ascending: true }),
+    supabaseClient.from("qr_categories").select("*").order("name", { ascending: true }),
+    supabaseClient.from("qr_user_settings").select("*").eq("user_id", state.user.id).maybeSingle()
   ]);
 
   if (locationsError || itemsError) {
@@ -1093,7 +1095,7 @@ async function loadCloudData() {
 
 async function createLocation(name, area, parentLocationId = "", photoData = "", sections = []) {
   const { data, error } = await supabaseClient
-    .from("locations")
+    .from("qr_locations")
     .insert({
       name,
       area,
@@ -1119,7 +1121,7 @@ async function createLocation(name, area, parentLocationId = "", photoData = "",
 
 async function updateLocation(locationId, updates) {
   const { data, error } = await supabaseClient
-    .from("locations")
+    .from("qr_locations")
     .update(updates)
     .eq("id", locationId)
     .select()
@@ -1137,7 +1139,7 @@ async function updateLocation(locationId, updates) {
 
 async function updateItem(itemId, updates) {
   const { data, error } = await supabaseClient
-    .from("items")
+    .from("qr_items")
     .update(updates)
     .eq("id", itemId)
     .select()
@@ -1158,7 +1160,7 @@ async function createPlace(name) {
   if (!cleanName) return;
 
   const { data, error } = await supabaseClient
-    .from("places")
+    .from("qr_places")
     .insert({ name: cleanName, user_id: state.user.id })
     .select()
     .single();
@@ -1179,7 +1181,7 @@ async function createDefaultPlaces() {
 
   const defaults = ["Home", "Work", "Car"];
   const { data, error } = await supabaseClient
-    .from("places")
+    .from("qr_places")
     .insert(defaults.map((name) => ({ name, user_id: state.user.id })))
     .select();
 
@@ -1192,7 +1194,7 @@ async function ensureUserSettings() {
   if (!state.user || state.settings.user_id) return;
 
   const { data, error } = await supabaseClient
-    .from("user_settings")
+    .from("qr_user_settings")
     .insert({ user_id: state.user.id, dark_mode: Boolean(state.settings.dark_mode) })
     .select()
     .single();
@@ -1208,7 +1210,7 @@ async function updateDarkMode(enabled) {
   applyTheme();
 
   const { data, error } = await supabaseClient
-    .from("user_settings")
+    .from("qr_user_settings")
     .upsert({
       user_id: state.user.id,
       dark_mode: enabled,
@@ -1236,7 +1238,7 @@ async function createCategory(name, renderAfter = true) {
   if (existing) return existing;
 
   const { data, error } = await supabaseClient
-    .from("categories")
+    .from("qr_categories")
     .insert({ name: cleanName, user_id: state.user.id })
     .select()
     .single();
@@ -1258,7 +1260,7 @@ async function createDefaultCategories() {
 
   const defaults = ["Tools", "Cables", "Documents", "Kitchen", "Camping", "Cleaning", "Electronics", "Clothes"];
   const { data, error } = await supabaseClient
-    .from("categories")
+    .from("qr_categories")
     .insert(defaults.map((name) => ({ name, user_id: state.user.id })))
     .select();
 
@@ -1274,7 +1276,7 @@ async function deleteCategory(category) {
     : `Delete ${category.name}?`;
   if (!window.confirm(message)) return;
 
-  const { error } = await supabaseClient.from("categories").delete().eq("id", category.id);
+  const { error } = await supabaseClient.from("qr_categories").delete().eq("id", category.id);
 
   if (error) {
     showError(error);
@@ -1293,7 +1295,7 @@ async function deletePlace(place) {
     : `Delete ${place.name}?`;
   if (!window.confirm(message)) return;
 
-  const { error } = await supabaseClient.from("places").delete().eq("id", place.id);
+  const { error } = await supabaseClient.from("qr_places").delete().eq("id", place.id);
 
   if (error) {
     showError(error);
@@ -1310,9 +1312,9 @@ async function shareRecord(type, record, recipientEmail) {
   if (!cleanEmail || !record || !state.user) return;
 
   const config = {
-    location: { table: "location_shares", idColumn: "location_id" },
-    item: { table: "item_shares", idColumn: "item_id" },
-    place: { table: "place_shares", idColumn: "place_id" }
+    location: { table: "qr_location_shares", idColumn: "location_id" },
+    item: { table: "qr_item_shares", idColumn: "item_id" },
+    place: { table: "qr_place_shares", idColumn: "place_id" }
   }[type];
 
   if (!config) return;
@@ -1363,7 +1365,7 @@ async function createItem(location, form) {
   if (!item.name) return;
 
   const { data, error } = await supabaseClient
-    .from("items")
+    .from("qr_items")
     .insert(item)
     .select()
     .single();
@@ -1384,7 +1386,7 @@ async function moveItem(itemId, locationId) {
   if (!item || item.location_id === locationId) return;
 
   const { data, error } = await supabaseClient
-    .from("items")
+    .from("qr_items")
     .update({ location_id: locationId })
     .eq("id", itemId)
     .select()
@@ -1401,7 +1403,7 @@ async function moveItem(itemId, locationId) {
 }
 
 async function deleteItem(itemId) {
-  const { error } = await supabaseClient.from("items").delete().eq("id", itemId);
+  const { error } = await supabaseClient.from("qr_items").delete().eq("id", itemId);
 
   if (error) {
     showError(error);
@@ -1417,7 +1419,7 @@ async function deleteLocation(location) {
   const confirmed = window.confirm(`Delete ${location.name} and its items?`);
   if (!confirmed) return;
 
-  const { error } = await supabaseClient.from("locations").delete().eq("id", location.id);
+  const { error } = await supabaseClient.from("qr_locations").delete().eq("id", location.id);
 
   if (error) {
     showError(error);
@@ -2151,6 +2153,7 @@ function render() {
   els.dashboard.classList.toggle("hidden", !signedIn);
   els.accountMenu.classList.toggle("hidden", !signedIn);
   els.accountButton.textContent = getAccountInitial();
+  els.importButton.disabled = !signedIn || !supabaseClient;
   els.exportButton.disabled = !signedIn || !supabaseClient;
   if (els.searchToggleButton) {
     els.searchToggleButton.classList.toggle("hidden", !signedIn);
@@ -2374,10 +2377,62 @@ els.clearSearchButton.addEventListener("click", () => {
   render();
 });
 
+async function importBackup(file) {
+  if (!file || !state.user) return;
+
+  const backup = JSON.parse(await file.text());
+  const withUser = (records = []) => records.map((record) => ({ ...record, user_id: state.user.id }));
+  setSyncStatus("Importing...");
+
+  const locations = withUser(backup.locations || []);
+  const items = withUser(backup.items || []);
+  const places = withUser(backup.places || []);
+  const categories = withUser(backup.categories || []);
+
+  const steps = [
+    locations.length ? supabaseClient.from("qr_locations").upsert(locations, { onConflict: "id" }) : null,
+    places.length ? supabaseClient.from("qr_places").upsert(places, { onConflict: "id" }) : null,
+    categories.length ? supabaseClient.from("qr_categories").upsert(categories, { onConflict: "id" }) : null,
+    items.length ? supabaseClient.from("qr_items").upsert(items, { onConflict: "id" }) : null,
+    backup.settings ? supabaseClient.from("qr_user_settings").upsert({
+      ...backup.settings,
+      user_id: state.user.id,
+      updated_at: new Date().toISOString()
+    }, { onConflict: "user_id" }) : null
+  ].filter(Boolean);
+
+  for (const step of steps) {
+    const { error } = await step;
+    if (error) {
+      showError(error);
+      return;
+    }
+  }
+
+  setMessage("Import complete.");
+  await loadCloudData();
+}
+
+els.importButton.addEventListener("click", () => {
+  els.importFile.value = "";
+  els.importFile.click();
+});
+
+els.importFile.addEventListener("change", async (event) => {
+  try {
+    await importBackup(event.target.files?.[0]);
+  } catch (error) {
+    showError(error);
+  }
+});
+
 els.exportButton.addEventListener("click", () => {
   const exportData = {
     locations: state.locations,
     items: state.items,
+    places: state.places,
+    categories: state.categories,
+    settings: state.settings,
     exported_at: new Date().toISOString()
   };
   const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: "application/json" });
