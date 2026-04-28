@@ -23,6 +23,7 @@ let draggedItemId = "";
 let labelLocationId = "";
 let shareTarget = null;
 let searchOpen = false;
+let locationPickerOpen = false;
 const expandedLocationIds = new Set();
 
 const labelPresets = {
@@ -1484,6 +1485,7 @@ function renderLocationList(container) {
       childCount ? `${childCount} nested location${childCount === 1 ? "" : "s"}` : ""
     ].filter(Boolean).join(" - ");
     button.addEventListener("click", () => {
+      locationPickerOpen = true;
       if (childCount) {
         if (isExpanded) {
           expandedLocationIds.delete(location.id);
@@ -1612,6 +1614,13 @@ function renderLocationDetail(container) {
 function renderHome() {
   const content = els.homeTemplate.content.cloneNode(true);
   content.querySelector("#locationCount").textContent = getVisibleLocations().length;
+  const picker = content.querySelector(".location-picker-details");
+  if (picker) {
+    picker.open = locationPickerOpen;
+    picker.addEventListener("toggle", () => {
+      locationPickerOpen = picker.open;
+    });
+  }
   renderLocationList(content.querySelector("#locationList"));
   renderLocationDetail(content.querySelector("#locationDetail"));
   els.modePanel.replaceChildren(content);
